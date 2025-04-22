@@ -8,14 +8,15 @@ import {InitialPlan, ProjectDetails} from '@/types';
 export default function Home() {
   const [projectDetails, setProjectDetails] = useState<ProjectDetails | null>(null);
   const [initialPlan, setInitialPlan] = useState<InitialPlan[] | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(null);
 
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">ArchiPlanAI</h1>
       {!projectDetails ? (
-        <ProjectDetailsForm setProjectDetails={setProjectDetails} setInitialPlan={setInitialPlan} />
+        <ProjectDetailsForm setProjectDetails={setProjectDetails} setInitialPlan={setInitialPlan} setProjectId={setProjectId} />
       ) : (
-        <PlanDisplay projectDetails={projectDetails} initialPlan={initialPlan} />
+        <PlanDisplay projectDetails={projectDetails} initialPlan={initialPlan} projectId={projectId} />
       )}
     </div>
   );

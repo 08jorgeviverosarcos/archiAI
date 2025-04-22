@@ -7,15 +7,18 @@ import {Input} from '@/components/ui/input';
 import {Button} from '@/components/ui/button';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ArrowRight, ArrowLeft, AlertCircle, Trash2, Plus} from 'lucide-react';
+import {useRouter} from 'next/navigation';
 
 interface PlanDisplayProps {
   projectDetails: ProjectDetails;
   initialPlan: InitialPlan[] | null;
+  projectId: string | null;
 }
 
-export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initialPlan}) => {
+export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initialPlan, projectId}) => {
   const [editablePlan, setEditablePlan] = useState<InitialPlan[] | null>(initialPlan);
   const [totalCost, setTotalCost] = useState(0);
+  const router = useRouter();
 
   useEffect(() => {
     if (editablePlan) {
@@ -50,7 +53,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
 
   const handleAddPhase = () => {
     if (editablePlan) {
-      const newPhase: InitialPlan = {phaseName: 'Nueva Fase', estimatedDuration: 1, estimatedCost: 1000};
+      const newPhase: InitialPlan = {phaseId: crypto.randomUUID(), phaseName: 'Nueva Fase', estimatedDuration: 1, estimatedCost: 1000};
       setEditablePlan([...editablePlan, newPhase]);
     }
   };
@@ -60,6 +63,35 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
       const updatedPlan = [...editablePlan];
       updatedPlan.splice(index, 1);
       setEditablePlan(updatedPlan);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!projectId || !editablePlan) {
+      console.error('Project ID or editable plan is missing.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/generate-plan', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({projectId: projectId, initialPlan: editablePlan}),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update initial plan');
+      }
+
+      console.log('Plan saved successfully');
+      alert('Plan saved successfully!');
+      router.push('/');
+    } catch (error: any) {
+      console.error('Error saving plan:', error);
+      alert(`Error saving plan: ${error.message}`);
     }
   };
 
@@ -141,7 +173,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
           <ArrowLeft className="mr-2" />
           Volver
         </Button>
-        <Button>
+        <Button onClick={handleSave}>
           Guardar Planificación y Continuar
           <ArrowRight className="ml-2" />
         </Button>

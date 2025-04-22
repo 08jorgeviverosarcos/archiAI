@@ -17,6 +17,7 @@ import {useToast} from '@/hooks/use-toast';
 interface ProjectDetailsFormProps {
   setProjectDetails: (details: ProjectDetails) => void;
   setInitialPlan: (plan: any) => void; // Update type as needed
+  setProjectId: (id: string) => void;
 }
 
 const formSchema = z.object({
@@ -40,7 +41,7 @@ const formSchema = z.object({
   aestheticPreferences: z.string().optional(),
 });
 
-export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjectDetails, setInitialPlan}) => {
+export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjectDetails, setInitialPlan, setProjectId}) => {
   const {toast} = useToast();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -74,6 +75,7 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjec
       const data = await response.json();
       setInitialPlan(data.initialPlan);
       setProjectDetails(values);
+      setProjectId(data.projectId); // Extract project ID
     } catch (error: any) {
       console.error('Error generating initial plan:', error);
       toast({

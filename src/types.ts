@@ -7,6 +7,7 @@ export interface ProjectDetails {
   currency: string;
   functionalRequirements: string;
   aestheticPreferences?: string;
+  projectId?: string
 }
 
 export interface InitialPlan {
@@ -15,4 +16,5 @@ export interface InitialPlan {
   estimatedDuration: number;
   estimatedCost: number;
 }
+
 
