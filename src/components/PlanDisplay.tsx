@@ -6,7 +6,7 @@ import {Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Table
 import {Input} from '@/components/ui/input';
 import {Button} from '@/components/ui/button';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
-import {ArrowRight, ArrowLeft, AlertCircle} from 'lucide-react';
+import {ArrowRight, ArrowLeft, AlertCircle, Trash2, Plus} from 'lucide-react';
 
 interface PlanDisplayProps {
   projectDetails: ProjectDetails;
@@ -48,6 +48,21 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
     }
   };
 
+  const handleAddPhase = () => {
+    if (editablePlan) {
+      const newPhase: InitialPlan = {phaseName: 'Nueva Fase', estimatedDuration: 1, estimatedCost: 1000};
+      setEditablePlan([...editablePlan, newPhase]);
+    }
+  };
+
+  const handleDeletePhase = (index: number) => {
+    if (editablePlan) {
+      const updatedPlan = [...editablePlan];
+      updatedPlan.splice(index, 1);
+      setEditablePlan(updatedPlan);
+    }
+  };
+
   if (!projectDetails || !initialPlan) {
     return <div>No project details or initial plan available.</div>;
   }
@@ -60,9 +75,10 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
         <TableCaption>A list of your project phases.</TableCaption>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[150px]">Fase</TableHead>
-            <TableHead>Duración Estimada (días)</TableHead>
+            <TableHead className="w-[250px]">Fase</TableHead>
+            <TableHead className="w-[150px]">Duración Estimada (días)</TableHead>
             <TableHead>Costo Estimado ({projectDetails.currency})</TableHead>
+            <TableHead className="w-[50px]">Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -94,10 +110,20 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
                     onChange={(e) => handleCostChange(index, Number(e.target.value))}
                   />
                 </TableCell>
+                <TableCell>
+                  <Button variant="destructive" size="icon" onClick={() => handleDeletePhase(index)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
         </TableBody>
       </Table>
+
+      <Button variant="secondary" onClick={handleAddPhase} className="mt-2">
+        <Plus className="mr-2 h-4 w-4" />
+        Agregar Fase
+      </Button>
 
       <h3 className="text-lg font-semibold mt-4">Resumen del Presupuesto</h3>
       <p>Presupuesto Total Ingresado: {projectDetails.totalBudget} {projectDetails.currency}</p>
