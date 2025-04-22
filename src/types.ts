@@ -10,6 +10,7 @@ export interface ProjectDetails {
 }
 
 export interface InitialPlan {
+  phaseId: string;
   phaseName: string;
   estimatedDuration: number;
   estimatedCost: number;

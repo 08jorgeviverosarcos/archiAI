@@ -11,7 +11,6 @@ import {Input} from '@/components/ui/input';
 import {Button} from '@/components/ui/button';
 import {Textarea} from '@/components/ui/textarea';
 import {ProjectDetails} from '@/types';
-import {generateInitialPlan} from '@/ai/flows/generate-initial-plan';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
 import {useToast} from '@/hooks/use-toast';
 
@@ -59,8 +58,21 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjec
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      const initialPlan = await generateInitialPlan(values);
-      setInitialPlan(initialPlan);
+      const response = await fetch('/api/generate-plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(values),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to generate initial plan');
+      }
+
+      const data = await response.json();
+      setInitialPlan(data.initialPlan);
       setProjectDetails(values);
     } catch (error: any) {
       console.error('Error generating initial plan:', error);
