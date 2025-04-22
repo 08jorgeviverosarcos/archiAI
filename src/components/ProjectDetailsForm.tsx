@@ -4,6 +4,7 @@ import React from 'react';
 import {useForm} from 'react-hook-form';
 import {z} from 'zod';
 import {zodResolver} from '@hookform/resolvers/zod';
+import {Asterisk} from 'lucide-react';
 
 import {Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage} from '@/components/ui/form';
 import {Input} from '@/components/ui/input';
@@ -11,6 +12,7 @@ import {Button} from '@/components/ui/button';
 import {Textarea} from '@/components/ui/textarea';
 import {ProjectDetails} from '@/types';
 import {generateInitialPlan} from '@/ai/flows/generate-initial-plan';
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
 
 interface ProjectDetailsFormProps {
   setProjectDetails: (details: ProjectDetails) => void;
@@ -22,8 +24,8 @@ const formSchema = z.object({
     message: 'Project name must be at least 2 characters.',
   }),
   projectDescription: z.string().optional(),
-  projectType: z.string().min(2, {
-    message: 'Project type must be at least 2 characters.',
+  projectType: z.enum(['Casa nueva', 'Remodelación parcial', 'Remodelación total', 'Edificio residencial', 'Edificio comercial', 'Otro'], {
+    required_error: 'Please select a project type.',
   }),
   projectLocation: z.string().optional(),
   totalBudget: z.number().min(1, {
@@ -44,7 +46,7 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjec
     defaultValues: {
       projectName: '',
       projectDescription: '',
-      projectType: '',
+      projectType: 'Casa nueva',
       projectLocation: '',
       totalBudget: 0,
       currency: 'USD',
@@ -72,9 +74,12 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjec
           name="projectName"
           render={({field}) => (
             <FormItem>
-              <FormLabel>Project Name</FormLabel>
+              <FormLabel>
+                Project Name
+                <Asterisk className="ml-1 text-red-500" />
+              </FormLabel>
               <FormControl>
-                <Input placeholder="Project Name" {...field} />
+                <Input placeholder="Ej. Remodelación Apartamento Familia Pérez" {...field} />
               </FormControl>
               <FormDescription>What is the name of your project?</FormDescription>
               <FormMessage />
@@ -86,9 +91,9 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjec
           name="projectDescription"
           render={({field}) => (
             <FormItem>
-              <FormLabel>Project Description</FormLabel>
+              <FormLabel>Project Description (Opcional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="Describe your project" {...field} />
+                <Textarea placeholder="Ingrese detalles adicionales sobre el proyecto." {...field} />
               </FormControl>
               <FormDescription>Give us more details about your project.</FormDescription>
               <FormMessage />
@@ -100,10 +105,25 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjec
           name="projectType"
           render={({field}) => (
             <FormItem>
-              <FormLabel>Project Type</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., New House, Renovation" {...field} />
-              </FormControl>
+              <FormLabel>
+                Project Type
+                <Asterisk className="ml-1 text-red-500" />
+              </FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a project type" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Casa nueva">Casa nueva</SelectItem>
+                  <SelectItem value="Remodelación parcial">Remodelación parcial</SelectItem>
+                  <SelectItem value="Remodelación total">Remodelación total</SelectItem>
+                  <SelectItem value="Edificio residencial">Edificio residencial</SelectItem>
+                  <SelectItem value="Edificio comercial">Edificio comercial</SelectItem>
+                  <SelectItem value="Otro">Otro</SelectItem>
+                </SelectContent>
+              </Select>
               <FormDescription>What type of project is this?</FormDescription>
               <FormMessage />
             </FormItem>
@@ -114,9 +134,9 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjec
           name="projectLocation"
           render={({field}) => (
             <FormItem>
-              <FormLabel>Project Location</FormLabel>
+              <FormLabel>Project Location (Opcional)</FormLabel>
               <FormControl>
-                <Input placeholder="Project Location" {...field} />
+                <Input placeholder="Ingrese la dirección o ubicación general." {...field} />
               </FormControl>
               <FormDescription>Where is the project located?</FormDescription>
               <FormMessage />
@@ -128,9 +148,12 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjec
           name="totalBudget"
           render={({field}) => (
             <FormItem>
-              <FormLabel>Total Budget</FormLabel>
+              <FormLabel>
+                Total Budget
+                <Asterisk className="ml-1 text-red-500" />
+              </FormLabel>
               <FormControl>
-                <Input type="number" placeholder="Total Budget" {...field} />
+                <Input type="number" placeholder="Ingrese el presupuesto total estimado." {...field} />
               </FormControl>
               <FormDescription>What is the total budget for this project?</FormDescription>
               <FormMessage />
@@ -156,9 +179,12 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjec
           name="functionalRequirements"
           render={({field}) => (
             <FormItem>
-              <FormLabel>Functional Requirements</FormLabel>
+              <FormLabel>
+                Functional Requirements
+                <Asterisk className="ml-1 text-red-500" />
+              </FormLabel>
               <FormControl>
-                <Textarea placeholder="e.g., 3 bedrooms, 2 bathrooms, open kitchen" {...field} />
+                <Textarea placeholder="Ej. Necesitamos 3 habitaciones, 2 baños completos, una cocina abierta y un balcón amplio." {...field} />
               </FormControl>
               <FormDescription>What are the functional requirements for this project?</FormDescription>
               <FormMessage />
@@ -170,9 +196,9 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjec
           name="aestheticPreferences"
           render={({field}) => (
             <FormItem>
-              <FormLabel>Aesthetic Preferences</FormLabel>
+              <FormLabel>Aesthetic Preferences (Opcional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="e.g., Modern, Minimalist" {...field} />
+                <Textarea placeholder="Ej. Nos gusta el estilo moderno con acabados en madera y colores neutros." {...field} />
               </FormControl>
               <FormDescription>What are the aesthetic preferences for this project?</FormDescription>
               <FormMessage />

@@ -1,7 +1,7 @@
 export interface ProjectDetails {
   projectName: string;
   projectDescription?: string;
-  projectType: string;
+  projectType: 'Casa nueva' | 'Remodelación parcial' | 'Remodelación total' | 'Edificio residencial' | 'Edificio comercial' | 'Otro';
   projectLocation?: string;
   totalBudget: number;
   currency: string;
@@ -14,3 +14,4 @@ export interface InitialPlan {
   estimatedDuration: number;
   estimatedCost: number;
 }
+
