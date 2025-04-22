@@ -13,6 +13,7 @@ import {Textarea} from '@/components/ui/textarea';
 import {ProjectDetails} from '@/types';
 import {generateInitialPlan} from '@/ai/flows/generate-initial-plan';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
+import {useToast} from '@/hooks/use-toast';
 
 interface ProjectDetailsFormProps {
   setProjectDetails: (details: ProjectDetails) => void;
@@ -41,6 +42,7 @@ const formSchema = z.object({
 });
 
 export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjectDetails, setInitialPlan}) => {
+  const {toast} = useToast();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -60,9 +62,13 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjec
       const initialPlan = await generateInitialPlan(values);
       setInitialPlan(initialPlan);
       setProjectDetails(values);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating initial plan:', error);
-      // TODO: Implement toast message
+      toast({
+        variant: 'destructive',
+        title: 'Error generating plan',
+        description: error.message || 'Failed to generate initial plan. Please try again.',
+      });
     }
   }
 
@@ -153,7 +159,12 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({setProjec
                 <Asterisk className="ml-1 text-red-500" />
               </FormLabel>
               <FormControl>
-                <Input type="number" placeholder="Ingrese el presupuesto total estimado." {...field} />
+                <Input
+                  type="number"
+                  placeholder="Ingrese el presupuesto total estimado."
+                  value={field.value === 0 ? '' : field.value}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
+                />
               </FormControl>
               <FormDescription>What is the total budget for this project?</FormDescription>
               <FormMessage />
