@@ -20,7 +20,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
   const [editablePlan, setEditablePlan] = useState<InitialPlan[] | null>(initialPlan);
   const [totalCost, setTotalCost] = useState(0);
   const router = useRouter();
-   const { toast } = useToast();
+  const {toast} = useToast();
 
   useEffect(() => {
     if (editablePlan) {
@@ -71,11 +71,11 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
   const handleSave = async () => {
     if (!projectId || !editablePlan) {
       console.error('Project ID or editable plan is missing.');
-       toast({
-          variant: 'destructive',
-          title: 'Error al guardar el plan',
-          description: 'El ID del proyecto o el plan editable no están presentes.',
-        });
+      toast({
+        variant: 'destructive',
+        title: 'Error al guardar el plan',
+        description: 'El ID del proyecto o el plan editable no están presentes.',
+      });
       return;
     }
 
@@ -89,23 +89,23 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
       });
 
       if (!response.ok) {
-         const errorData = await response.json();
+        const errorData = await response.json();
         throw new Error(errorData.message || 'Fallo al actualizar el plan inicial');
       }
 
       console.log('Plan saved successfully');
-       toast({
-          title: 'Plan Guardado',
-          description: '¡Plan guardado exitosamente!',
-        });
+      toast({
+        title: 'Plan Guardado',
+        description: '¡Plan guardado exitosamente!',
+      });
       router.push('/');
     } catch (error: any) {
       console.error('Error al guardar el plan:', error);
-       toast({
-          variant: 'destructive',
-          title: 'Error al guardar el plan',
-          description: error.message || 'Fallo al guardar el plan.',
-        });
+      toast({
+        variant: 'destructive',
+        title: 'Error al guardar el plan',
+        description: error.message || 'Fallo al guardar el plan.',
+      });
     }
   };
 
