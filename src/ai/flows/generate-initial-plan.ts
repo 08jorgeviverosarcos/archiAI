@@ -48,19 +48,19 @@ const initialPlanPrompt = ai.definePrompt({
   output: {
     schema: GenerateInitialPlanOutputSchema,
   },
-  prompt: `You are an expert construction project planner. Generate an initial project plan with phases, estimated durations (in days), and high-level costs, based on the following project details.
+  prompt: `Eres un experto en planificación de proyectos de construcción. Genera un plan de proyecto inicial con fases, duraciones estimadas (en días) y costos de alto nivel, según los siguientes detalles del proyecto.
 
-Project Type: {{{projectType}}}
-Functional Requirements: {{{functionalRequirements}}}
-Total Budget: {{{totalBudget}}} {{{currency}}}
+Tipo de Proyecto: {{{projectType}}}
+Requisitos Funcionales: {{{functionalRequirements}}}
+Presupuesto Total: {{{totalBudget}}} {{{currency}}}
 {{#if projectDescription}}
-Description: {{{projectDescription}}}
+Descripción: {{{projectDescription}}}
 {{/if}}
 {{#if aestheticPreferences}}
-Aesthetic Preferences: {{{aestheticPreferences}}}
+Preferencias Estéticas: {{{aestheticPreferences}}}
 {{/if}}
 
-Respond in JSON format with an array of project phases. Each phase should include a phaseName, estimatedDuration, and estimatedCost.
+Responde en formato JSON con un array de fases del proyecto. Cada fase debe incluir un phaseName (nombre de la fase), estimatedDuration (duración estimada) y estimatedCost (costo estimado).
 `,
 });
 

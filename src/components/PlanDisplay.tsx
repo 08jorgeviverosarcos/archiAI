@@ -8,6 +8,7 @@ import {Button} from '@/components/ui/button';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ArrowRight, ArrowLeft, AlertCircle, Trash2, Plus} from 'lucide-react';
 import {useRouter} from 'next/navigation';
+import {useToast} from '@/hooks/use-toast';
 
 interface PlanDisplayProps {
   projectDetails: ProjectDetails;
@@ -19,6 +20,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
   const [editablePlan, setEditablePlan] = useState<InitialPlan[] | null>(initialPlan);
   const [totalCost, setTotalCost] = useState(0);
   const router = useRouter();
+   const { toast } = useToast();
 
   useEffect(() => {
     if (editablePlan) {
@@ -69,6 +71,11 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
   const handleSave = async () => {
     if (!projectId || !editablePlan) {
       console.error('Project ID or editable plan is missing.');
+       toast({
+          variant: 'destructive',
+          title: 'Error al guardar el plan',
+          description: 'El ID del proyecto o el plan editable no están presentes.',
+        });
       return;
     }
 
@@ -82,21 +89,28 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update initial plan');
+         const errorData = await response.json();
+        throw new Error(errorData.message || 'Fallo al actualizar el plan inicial');
       }
 
       console.log('Plan saved successfully');
-      alert('Plan saved successfully!');
+       toast({
+          title: 'Plan Guardado',
+          description: '¡Plan guardado exitosamente!',
+        });
       router.push('/');
     } catch (error: any) {
-      console.error('Error saving plan:', error);
-      alert(`Error saving plan: ${error.message}`);
+      console.error('Error al guardar el plan:', error);
+       toast({
+          variant: 'destructive',
+          title: 'Error al guardar el plan',
+          description: error.message || 'Fallo al guardar el plan.',
+        });
     }
   };
 
   if (!projectDetails || !initialPlan) {
-    return <div>No project details or initial plan available.</div>;
+    return <div>No hay detalles del proyecto o plan inicial disponible.</div>;
   }
 
   return (
@@ -104,7 +118,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
       <h2 className="text-xl font-bold mb-4">Revisar Planificación Inicial</h2>
       <h3 className="text-lg font-semibold mt-2">Planificación Inicial Generada</h3>
       <Table>
-        <TableCaption>A list of your project phases.</TableCaption>
+        <TableCaption>Lista de las fases de tu proyecto.</TableCaption>
         <TableHeader>
           <TableRow>
             <TableHead className="w-[250px]">Fase</TableHead>
@@ -120,7 +134,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
                 <TableCell>
                   <Input
                     type="text"
-                    value={phase.phaseName}
+                    value={phase.phaseName || ''}
                     onChange={(e) =>
                       handlePhaseNameChange(index, e.target.value)
                     }
@@ -129,7 +143,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
                 <TableCell>
                   <Input
                     type="number"
-                    value={phase.estimatedDuration}
+                    value={phase.estimatedDuration?.toString() || ''}
                     onChange={(e) =>
                       handleDurationChange(index, Number(e.target.value))
                     }
@@ -138,7 +152,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({projectDetails, initial
                 <TableCell>
                   <Input
                     type="number"
-                    value={phase.estimatedCost}
+                    value={phase.estimatedCost?.toString() || ''}
                     onChange={(e) => handleCostChange(index, Number(e.target.value))}
                   />
                 </TableCell>
