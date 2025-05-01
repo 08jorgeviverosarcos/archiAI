@@ -147,6 +147,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
 
     // Update editablePlan if initialPlan prop changes (e.g., fetched after mount)
    useEffect(() => {
+     console.log("Initial plan prop changed:", initialPlan);
      setEditablePlan(initialPlan ? [...initialPlan].sort((a, b) => a.order - b.order) : null);
    }, [initialPlan]);
 
@@ -381,5 +382,3 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
     </DndProvider>
   );
 };
-
-    

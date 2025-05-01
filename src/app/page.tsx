@@ -90,12 +90,14 @@ export default function Home() {
               }
            } else {
                 const planData = await response.json();
-                console.log("Fetched Initial Plan Data:", planData);
+                console.log("Fetched Initial Plan Data:", JSON.stringify(planData, null, 2)); // Log fetched data
                 // Ensure the structure is correct and phases exist
                 if (planData && planData.initialPlan && Array.isArray(planData.initialPlan.phases)) {
-                    setInitialPlan(planData.initialPlan.phases);
+                    // Sort phases by order before setting state
+                    const sortedPhases = [...planData.initialPlan.phases].sort((a, b) => a.order - b.order);
+                    setInitialPlan(sortedPhases);
                     setInitialPlanId(planData.initialPlan._id || selectedProject.initialPlanId); // Use fetched ID or fallback
-                    console.log("Successfully set initial plan state:", planData.initialPlan.phases);
+                    console.log("Successfully set initial plan state with sorted phases:", sortedPhases);
                 } else {
                     console.warn("Fetched plan data is missing expected structure or phases array:", planData);
                     setInitialPlan(null);
@@ -290,5 +292,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
