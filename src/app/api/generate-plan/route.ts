@@ -1,36 +1,17 @@
 'use server';
 
 /**
- * @fileOverview API endpoint for generating an initial project plan using GenAI and saving it to MongoDB.
- *
- * This endpoint receives project details, interacts with Gemini to generate a plan,
- * and saves the plan with phase details and total estimated cost to MongoDB.
+ * @fileOverview API endpoint for generating an initial project plan using GenAI
+ * and saving the Project and its InitialPlan to MongoDB.
  */
 
-import {generateInitialPlan} from '@/ai/flows/generate-initial-plan';
-import {NextResponse} from 'next/server';
-import {z} from 'zod';
+import { generateInitialPlan, GenerateInitialPlanOutput } from '@/ai/flows/generate-initial-plan';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import mongoose from 'mongoose';
-
-// Define the database connection URL
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/archiplandb';
-
-// Define the project schema
-const projectSchema = new mongoose.Schema({
-  projectName: {type: String, required: true},
-  projectDescription: {type: String},
-  projectType: {type: String, required: true},
-  projectLocation: {type: String},
-  totalBudget: {type: Number, required: true},
-  currency: {type: String, required: true},
-  functionalRequirements: {type: String, required: true},
-  aestheticPreferences: {type: String},
-  initialPlan: {type: Array},
-  totalEstimatedCost: {type: Number},
-});
-
-// Define the project model
-const Project = mongoose.models.Project || mongoose.model('Project', projectSchema);
+import Project from '@/models/Project'; // Import Project model
+import InitialPlan from '@/models/InitialPlan'; // Import InitialPlan model
+import connectDB from '@/lib/db'; // Import db connection utility
 
 const requestSchema = z.object({
   projectName: z.string().min(2),
@@ -43,109 +24,146 @@ const requestSchema = z.object({
   aestheticPreferences: z.string().optional(),
 });
 
-// Function to insert phases into the database
-async function insertPhases(projectId: string, initialPlan: any) {
+// Function to update phases in the InitialPlan document
+async function updateInitialPlanPhases(planId: string, updatedPhases: any) {
   try {
-    // Connect to the database
-    await mongoose.connect(MONGODB_URI);
+    await connectDB();
 
-    // Update the project with the initial plan and total estimated cost
-    await Project.findByIdAndUpdate(projectId, {
-      initialPlan: initialPlan.map(phase => ({
-        phaseId: phase.phaseId,
+    const totalEstimatedCost = updatedPhases.reduce((sum: number, phase: any) => sum + phase.estimatedCost, 0);
+
+    await InitialPlan.findByIdAndUpdate(planId, {
+      phases: updatedPhases.map((phase: any, index: number) => ({ // Add index for order
+        phaseId: phase.phaseId || crypto.randomUUID(), // Ensure phaseId exists
         phaseName: phase.phaseName,
-        estimatedDurationDays: phase.estimatedDuration,
+        estimatedDuration: phase.estimatedDuration, // Use correct name from frontend
         estimatedCost: phase.estimatedCost,
+        order: index + 1, // Assign order based on array index
       })),
-      totalEstimatedCost: initialPlan.reduce((sum: number, phase: any) => sum + phase.estimatedCost, 0),
+      totalEstimatedCost: totalEstimatedCost,
+      // Let mongoose handle updatedAt automatically
     });
 
-    console.log('Phases inserted/updated successfully');
+    // Also update the totalEstimatedCost in the parent Project document
+    const initialPlanDoc = await InitialPlan.findById(planId);
+    if (initialPlanDoc) {
+        await Project.findByIdAndUpdate(initialPlanDoc.projectId, {
+            totalEstimatedCost: totalEstimatedCost,
+        });
+    }
+
+
+    console.log('InitialPlan phases updated successfully');
   } catch (error) {
-    console.error('Error inserting/updating phases:', error);
-    throw error;
-  } finally {
-    // Disconnect from the database
-    await mongoose.disconnect();
+    console.error('Error updating InitialPlan phases:', error);
+    throw error; // Re-throw to be caught by the main PUT handler
   }
+  // No disconnect here, handle connection in the main route handlers
 }
 
 export async function POST(req: Request) {
   try {
+    await connectDB(); // Connect to DB at the start of the request
+
     const body = await req.json();
     const parsedBody = requestSchema.parse(body);
 
-    // Call the GenAI flow to generate the initial plan
-    const initialPlan = await generateInitialPlan(parsedBody);
+    // 1. Create the Project document (without plan details initially)
+    const newProject = new Project({
+      ...parsedBody,
+      initialPlan: null, // Will be linked later
+      totalEstimatedCost: 0, // Initialize
+      // Timestamps automatically added
+    });
+    await newProject.save();
+    console.log('Project created successfully with ID:', newProject._id);
 
-    // Transform the response to match the backend's expected format
-    const transformedResponse = {
-      initialPlan: initialPlan.map(phase => ({
-        phaseId: crypto.randomUUID(), // Generate a UUID for each phase
-        phaseName: phase.phaseName,
-        estimatedDurationDays: phase.estimatedDuration,
-        estimatedCost: phase.estimatedCost,
-      })),
-      totalEstimatedCost: initialPlan.reduce((sum, phase) => sum + phase.estimatedCost, 0),
+    // 2. Call the GenAI flow to generate the initial plan phases
+    const generatedPhases = await generateInitialPlan(parsedBody);
+
+    // 3. Calculate total estimated cost and add order
+    const totalEstimatedCost = generatedPhases.reduce((sum, phase) => sum + phase.estimatedCost, 0);
+    const phasesWithOrder = generatedPhases.map((phase, index) => ({
+      phaseId: crypto.randomUUID(), // Generate UUID for frontend identification
+      phaseName: phase.phaseName,
+      estimatedDuration: phase.estimatedDuration, // Match schema
+      estimatedCost: phase.estimatedCost,
+      order: index + 1, // Assign order
+    }));
+
+
+    // 4. Create the InitialPlan document
+    const newInitialPlan = new InitialPlan({
+      projectId: newProject._id,
+      phases: phasesWithOrder,
+      totalEstimatedCost: totalEstimatedCost,
+       // Timestamps automatically added
+    });
+    await newInitialPlan.save();
+    console.log('InitialPlan created successfully with ID:', newInitialPlan._id);
+
+
+    // 5. Update the Project document with the reference to the InitialPlan and total cost
+    await Project.findByIdAndUpdate(newProject._id, {
+      initialPlan: newInitialPlan._id,
+      totalEstimatedCost: totalEstimatedCost,
+       // Timestamps automatically updated
+    });
+    console.log('Project updated with InitialPlan reference and total cost.');
+
+    // Prepare response for the frontend
+    const responseData = {
+        projectId: newProject._id.toString(), // Send project ID back
+        initialPlanId: newInitialPlan._id.toString(), // Send initial plan ID back
+        initialPlan: phasesWithOrder, // Send the structured phases
+        totalEstimatedCost: totalEstimatedCost,
     };
 
-    // Connect to the database
-    await mongoose.connect(MONGODB_URI);
 
-    // Create a new project
-    const project = new Project({
-      ...parsedBody,
-      initialPlan: transformedResponse.initialPlan,
-      totalEstimatedCost: transformedResponse.totalEstimatedCost,
-    });
+    return NextResponse.json(responseData);
 
-    // Save the project to the database
-    await project.save();
-
-    console.log('Project saved successfully');
-
-    return NextResponse.json({...transformedResponse, projectId: project._id});
   } catch (error) {
     console.error('Error generating plan:', error);
     if (error instanceof z.ZodError) {
-      // Handle Zod validation errors
       return new NextResponse(JSON.stringify({
         message: "Validation error",
         errors: error.errors
-      }), {status: 400});
+      }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
-    // Handle other errors (e.g., Gemini API errors)
+    // Handle other errors
     return new NextResponse(JSON.stringify({
       message: 'Failed to generate initial plan. Please try again.',
       error: error instanceof Error ? error.message : String(error),
-    }), {status: 500});
-  } finally {
-    // Disconnect from the database
-    await mongoose.disconnect();
+    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
+  // No disconnect here, let the connection pool manage
 }
 
+// Handles updating an existing InitialPlan
 export async function PUT(req: Request) {
-  try {
-    const body = await req.json();
-    const {projectId, initialPlan} = body;
+    try {
+      await connectDB(); // Connect to DB
 
-    // Validate that projectId and initialPlan are provided
-    if (!projectId || !initialPlan) {
+      const body = await req.json();
+      const { initialPlanId, initialPlan: updatedPhases } = body; // Expect initialPlanId now
+
+      // Validate that initialPlanId and updatedPhases are provided
+      if (!initialPlanId || !updatedPhases) {
+        return new NextResponse(JSON.stringify({
+          message: "Initial Plan ID and updated phases list are required"
+        }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+      }
+
+      // Update the phases in the specific InitialPlan document
+      await updateInitialPlanPhases(initialPlanId, updatedPhases);
+
+      return NextResponse.json({ message: 'Initial Plan updated successfully' });
+
+    } catch (error) {
+      console.error('Error updating initial plan:', error);
       return new NextResponse(JSON.stringify({
-        message: "Project ID and initial plan are required"
-      }), {status: 400});
+        message: 'Failed to update initial plan. Please try again.',
+        error: error instanceof Error ? error.message : String(error),
+      }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
-
-    // Insert phases into the database
-    await insertPhases(projectId, initialPlan);
-
-    return NextResponse.json({message: 'Phases updated successfully'});
-  } catch (error) {
-    console.error('Error updating phases:', error);
-    return new NextResponse(JSON.stringify({
-      message: 'Failed to update phases. Please try again.',
-      error: error instanceof Error ? error.message : String(error),
-    }), {status: 500});
+     // No disconnect here
   }
-}
