@@ -10,15 +10,13 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { ProjectDetails, InitialPlan as InitialPlanType } from '@/types'; // Ensure InitialPlanType is imported if needed
+import { ProjectDetails, InitialPlan as InitialPlanType } from '@/types'; // Ensure InitialPlanType is imported
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 
 interface ProjectDetailsFormProps {
-  setProjectDetails: (details: ProjectDetails) => void;
-  setInitialPlan: (plan: InitialPlanType[] | null) => void; // Use specific type
-  setInitialPlanId: (id: string | null) => void; // Add setter for initialPlanId
-  setProjectId: (id: string | null) => void; // Keep setter for project ID if needed
+  // Callback function when project and initial plan are successfully created
+  onProjectCreated: (projectDetails: ProjectDetails, initialPlan: InitialPlanType[] | null, initialPlanId: string | null) => void;
   setIsCreatingProject: (isCreating: boolean) => void; // To control form visibility
 }
 
@@ -46,10 +44,7 @@ const formSchema = z.object({
 });
 
 export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
-    setProjectDetails,
-    setInitialPlan,
-    setInitialPlanId,
-    setProjectId,
+    onProjectCreated,
     setIsCreatingProject // Receive the setter
 }) => {
   const { toast } = useToast();
@@ -71,6 +66,7 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
 
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+     console.log("Form submitted with values:", values);
      setIsSubmitting(true);
     try {
       const response = await fetch('/api/generate-plan', {
@@ -81,42 +77,46 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
         body: JSON.stringify(values),
       });
 
-      const responseBody = await response.text(); // Get raw response body
+      console.log("API response status:", response.status);
 
       if (!response.ok) {
-        let errorData;
+        let errorData = { message: `Server error: ${response.statusText}` };
         try {
-          errorData = JSON.parse(responseBody); // Try parsing JSON first
+          errorData = await response.json(); // Try parsing JSON first
           console.error('API Error Response (JSON):', errorData);
         } catch (jsonError) {
-          console.error('API Error Response (Text):', responseBody);
-          errorData = { message: `Server error: ${response.statusText}` };
+           const errorText = await response.text(); // Read text if JSON parsing fails
+          console.error('API Error Response (Text):', errorText);
+          errorData.message = `Failed to generate plan. Server responded with: ${errorText.substring(0, 100)}...`; // Include part of the text error
         }
         throw new Error(errorData.message || 'Fallo al generar el plan inicial');
       }
 
-      const data = JSON.parse(responseBody); // Parse JSON only if response is ok
+      const data = await response.json(); // Parse JSON only if response is ok
+      console.log("API success response data:", data);
 
-      // Update state with data from the successful response
-      setInitialPlan(data.initialPlan || null); // API returns initialPlan array
-      setProjectDetails({ ...values, _id: data.projectId }); // Store project details with ID
-      setProjectId(data.projectId || null); // Set project ID
-      setInitialPlanId(data.initialPlanId || null); // Set the initialPlan ID
+      // Prepare data for the callback
+      const newProjectDetails: ProjectDetails = { ...values, _id: data.projectId, initialPlanId: data.initialPlanId };
+      const generatedPlan: InitialPlanType[] | null = data.initialPlan || null;
+      const planId: string | null = data.initialPlanId || null;
+
+      // Call the callback function passed from the parent
+      onProjectCreated(newProjectDetails, generatedPlan, planId);
+
 
       toast({
         title: 'Plan Inicial Generado',
-        description: 'El plan inicial se ha generado y guardado.',
+        description: 'El plan inicial se ha generado y guardado correctamente.',
       });
 
-      // Optionally hide the form after successful submission
-       setIsCreatingProject(false); // Hide form, show PlanDisplay or ProjectSelector
+      // setIsCreatingProject(false); // Parent component will handle this via onProjectCreated
 
     } catch (error: any) {
       console.error('Error al generar el plan inicial:', error);
       toast({
         variant: 'destructive',
         title: 'Error al generar el plan',
-        description: error.message || 'Fallo al generar el plan inicial. Por favor, inténtelo de nuevo.',
+        description: error.message || 'Ocurrió un error inesperado. Por favor, inténtelo de nuevo.',
       });
     } finally {
       setIsSubmitting(false);
@@ -295,7 +295,10 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
             </div>
          </div>
 
-        <div className="flex justify-end pt-4">
+        <div className="flex justify-between pt-4">
+             <Button type="button" variant="outline" onClick={() => setIsCreatingProject(false)} disabled={isSubmitting}>
+                Cancelar
+             </Button>
             <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? 'Generando...' : 'Generar Planificación Inicial'}
             </Button>
@@ -304,3 +307,5 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
     </Form>
   );
 };
+
+    
