@@ -14,7 +14,7 @@ import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 
 interface PlanDisplayProps {
-  projectDetails: ProjectDetails;
+  projectDetails: ProjectDetails | null; // Allow null
   initialPlan: InitialPlan[] | null;
   initialPlanId: string | null; // Receive the ID of the InitialPlan document
   projectId: string | null; // Project ID might still be useful for context or navigation
@@ -145,6 +145,12 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
     }
   }, [editablePlan]);
 
+    // Update editablePlan if initialPlan prop changes (e.g., fetched after mount)
+   useEffect(() => {
+     setEditablePlan(initialPlan ? [...initialPlan].sort((a, b) => a.order - b.order) : null);
+   }, [initialPlan]);
+
+
   const handleCostChange = (index: number, newCost: number) => {
     if (editablePlan) {
       const updatedPlan = editablePlan.map((phase, i) =>
@@ -262,7 +268,8 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
        if (projectId) {
            router.push(`/dashboard/${projectId}`);
        } else {
-            router.push('/'); // Fallback navigation
+            // If project ID is somehow missing, attempt to go back or to home
+            handleGoBack();
        }
 
     } catch (error: any) {
@@ -293,10 +300,13 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
     return <div>Cargando detalles del proyecto...</div>;
   }
 
+  const budgetExceeded = totalCost > (projectDetails?.totalBudget ?? 0);
+
+
   return (
      <DndProvider backend={HTML5Backend}>
         <div>
-          <h2 className="text-xl font-bold mb-4">Revisar Planificación Inicial - {projectDetails.projectName}</h2>
+          <h2 className="text-xl font-bold mb-4">Revisar Planificación Inicial - {projectDetails?.projectName ?? 'Proyecto Sin Nombre'}</h2>
 
           <div className="mb-6">
             <h3 className="text-lg font-semibold mb-2 border-b pb-1">Planificación Generada</h3>
@@ -308,7 +318,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
                        <TableHead className="w-10"></TableHead> {/* Handle column */}
                       <TableHead className="min-w-[200px]">Fase</TableHead>
                       <TableHead className="w-[180px]">Duración Estimada (días)</TableHead>
-                      <TableHead className="w-[200px]">Costo Estimado ({projectDetails.currency})</TableHead>
+                      <TableHead className="w-[200px]">Costo Estimado ({projectDetails?.currency ?? '---'})</TableHead>
                       <TableHead className="w-[60px] text-center">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -323,7 +333,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
                         handleDurationChange={handleDurationChange}
                         handleCostChange={handleCostChange}
                         handleDeletePhase={handleDeletePhase}
-                        currency={projectDetails.currency}
+                        currency={projectDetails?.currency ?? '---'}
                       />
                     ))}
                   </TableBody>
@@ -342,13 +352,13 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
              <h3 className="text-lg font-semibold mb-2 border-b pb-1">Resumen del Presupuesto</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
                 <p className="font-medium">Presupuesto Total Ingresado:</p>
-                <p className="text-right">{projectDetails.totalBudget.toLocaleString()} {projectDetails.currency}</p>
+                <p className="text-right">{(projectDetails?.totalBudget ?? 0).toLocaleString()} {projectDetails?.currency ?? '---'}</p>
                 <p className="font-medium">Costo Estimado Planificación:</p>
-                 <p className={`text-right ${totalCost > projectDetails.totalBudget ? 'text-destructive font-semibold' : ''}`}>
-                    {totalCost.toLocaleString()} {projectDetails.currency}
+                 <p className={`text-right ${budgetExceeded ? 'text-destructive font-semibold' : ''}`}>
+                    {totalCost.toLocaleString()} {projectDetails?.currency ?? '---'}
                  </p>
             </div>
-             {totalCost > projectDetails.totalBudget && (
+             {budgetExceeded && (
                 <Alert variant="destructive" className="mt-4">
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>¡Atención!</AlertTitle>
