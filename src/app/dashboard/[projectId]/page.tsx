@@ -1,8 +1,9 @@
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ProjectDetails, InitialPlan as InitialPlanType } from '@/types';
+import { ProjectDetails, InitialPlan as InitialPlanType } from '@/types'; // Use specific type for plan phases
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, GanttChartSquare, ListTodo, Settings, DollarSign } from 'lucide-react'; // Icons
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,7 +22,7 @@ export default function ProjectDashboardPage() {
     const { toast } = useToast();
 
     const [project, setProject] = useState<ProjectDetails | null>(null);
-    const [initialPlan, setInitialPlan] = useState<InitialPlanType[] | null>(null);
+    const [initialPlan, setInitialPlan] = useState<InitialPlanType[] | null>(null); // State for plan phases
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -30,55 +31,90 @@ export default function ProjectDashboardPage() {
             if (!projectId) return;
             setIsLoading(true);
             setError(null);
+            setInitialPlan(null); // Reset plan on new load
             try {
                 // Fetch Project Details
-                const projectRes = await fetch(`/api/projects/${projectId}`); // Need API endpoint for single project
+                console.log(`Fetching project details for ID: ${projectId}`);
+                const projectRes = await fetch(`/api/projects/${projectId}`); // API endpoint for single project
+                console.log(`Project details response status: ${projectRes.status}`);
                 if (!projectRes.ok) {
-                    throw new Error('Failed to fetch project details');
+                    let errorMsg = 'Failed to fetch project details';
+                    try {
+                        const errorData = await projectRes.json();
+                        errorMsg = errorData.message || errorMsg;
+                    } catch (e) {/* ignore */}
+                    throw new Error(errorMsg);
                 }
                 const projectData = await projectRes.json();
+                console.log('Fetched project data:', projectData);
                 setProject(projectData.project);
 
                 // Fetch Initial Plan if linked
-                if (projectData.project?.initialPlanId) {
-                    const planRes = await fetch(`/api/initial-plans/${projectData.project.initialPlanId}`);
+                const planId = projectData.project?.initialPlanId;
+                if (planId) {
+                    console.log(`Fetching initial plan details for ID: ${planId}`);
+                    const planRes = await fetch(`/api/initial-plans/${planId}`);
+                    console.log(`Initial plan response status: ${planRes.status}`);
                      if (!planRes.ok) {
                         if (planRes.status === 404) {
-                             console.warn(`Initial plan not found for project ${projectId}`);
+                             console.warn(`Initial plan not found for project ${projectId} with plan ID ${planId}`);
                              setInitialPlan(null); // No plan available
+                             toast({
+                                variant: "default",
+                                title: "Planificación No Encontrada",
+                                description: "Este proyecto no tiene una planificación inicial detallada aún.",
+                            });
                         } else {
-                            throw new Error('Failed to fetch initial plan');
+                             let errorMsg = 'Failed to fetch initial plan';
+                             try {
+                                 const errorData = await planRes.json();
+                                 errorMsg = errorData.message || errorMsg;
+                             } catch (e) {/* ignore */}
+                            throw new Error(errorMsg);
                         }
                      } else {
                         const planData = await planRes.json();
-                        setInitialPlan(planData.initialPlan?.phases || null);
+                        console.log('Fetched initial plan data:', planData);
+                        // Ensure planData.initialPlan exists and has a phases array
+                        if (planData && planData.initialPlan && Array.isArray(planData.initialPlan.phases)) {
+                            // Sort phases by order before setting state
+                            const sortedPhases = [...planData.initialPlan.phases].sort((a, b) => a.order - b.order);
+                            setInitialPlan(sortedPhases);
+                            console.log("Successfully set initial plan state with sorted phases:", sortedPhases);
+                        } else {
+                            console.warn(`Initial plan data for ID ${planId} is missing structure or phases.`, planData);
+                            setInitialPlan(null); // Set to null if structure is wrong
+                        }
                      }
                 } else {
+                    console.log(`Project ${projectId} has no initialPlanId linked.`);
                     setInitialPlan(null); // No plan linked
                 }
 
             } catch (err: any) {
                 console.error("Error loading dashboard:", err);
-                setError('Could not load project data.');
+                setError(`Could not load project data: ${err.message}`);
                  toast({
                     variant: "destructive",
                     title: "Error",
-                    description: "No se pudieron cargar los datos del proyecto.",
+                    description: `No se pudieron cargar los datos del proyecto: ${err.message}`,
                 });
-                 // Redirect back if project load fails fundamentally
+                 // Optional: Redirect back if project load fails fundamentally
                  // router.push('/');
             } finally {
                 setIsLoading(false);
+                console.log("Finished fetching dashboard data.");
             }
         };
 
         fetchProjectData();
-    }, [projectId, router, toast]);
+    }, [projectId, router, toast]); // Dependencies
 
     if (isLoading) {
         return (
             <div className="flex justify-center items-center min-h-screen">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                 <span className="ml-2">Cargando dashboard...</span>
             </div>
         );
     }
@@ -93,6 +129,10 @@ export default function ProjectDashboardPage() {
             </div>
         );
     }
+
+    // Calculate total estimated cost from the fetched plan if available
+    const planTotalEstimatedCost = initialPlan?.reduce((sum, phase) => sum + (phase.estimatedCost || 0), 0);
+
 
     return (
         <div className="container mx-auto p-4 md:p-8 space-y-6">
@@ -124,18 +164,22 @@ export default function ProjectDashboardPage() {
                          <CardDescription>Comparación de presupuesto y costos estimados.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="space-y-2 text-sm">
+                        <div className="space-y-2 text-sm mb-4">
                             <div className="flex justify-between">
                                 <span>Presupuesto Total:</span>
                                 <span className="font-medium">{project.totalBudget?.toLocaleString() || 'N/A'} {project.currency}</span>
                             </div>
                              <div className="flex justify-between">
                                 <span>Costo Estimado (Plan):</span>
-                                <span className="font-medium">{project.totalEstimatedCost?.toLocaleString() || 'N/A'} {project.currency}</span>
+                                {/* Display cost from fetched plan or project's stored value as fallback */}
+                                <span className={`font-medium ${planTotalEstimatedCost && project.totalBudget && planTotalEstimatedCost > project.totalBudget ? 'text-destructive' : ''}`}>
+                                    {(planTotalEstimatedCost ?? project.totalEstimatedCost ?? 0).toLocaleString() || 'N/A'} {project.currency}
+                                </span>
                             </div>
                              {/* Add more budget details later */}
                         </div>
-                        <BudgetSummaryPlaceholder />
+                        {/* Placeholder can be removed when real budget component is ready */}
+                        {/* <BudgetSummaryPlaceholder /> */}
                     </CardContent>
                 </Card>
 
@@ -150,20 +194,21 @@ export default function ProjectDashboardPage() {
                             <div className="space-y-2">
                                 {initialPlan.map(phase => (
                                     <Button
-                                        key={phase.phaseId}
+                                        key={phase.phaseId} // Use unique phaseId from plan
                                         variant="outline"
                                         className="w-full justify-start"
-                                         onClick={() => router.push(`/dashboard/${projectId}/phases/${phase.phaseId}`)} // Navigate to phase detail
+                                         onClick={() => router.push(`/dashboard/${projectId}/phases/${phase.phaseId}`)} // Navigate to phase detail using phaseId
                                     >
-                                        {phase.phaseName}
+                                        {phase.phaseName} ({phase.estimatedDuration} días - {phase.estimatedCost.toLocaleString()} {project.currency})
                                         {/* Add status indicator later */}
                                     </Button>
                                 ))}
                             </div>
-                         ) : (
-                            <p className="text-muted-foreground italic">No hay fases definidas en la planificación inicial.</p>
-                         )}
-                        <PhaseListPlaceholder /> {/* Remove later */}
+                         ) : !isLoading ? ( // Only show message if not loading and plan is empty/null
+                            <p className="text-muted-foreground italic">No hay fases definidas en la planificación inicial para este proyecto.</p>
+                         ) : null /* Don't show anything while loading */}
+                         {/* Remove placeholder when list is populated */}
+                         {/* {(!initialPlan || initialPlan.length === 0) && <PhaseListPlaceholder />} */}
                     </CardContent>
                 </Card>
 

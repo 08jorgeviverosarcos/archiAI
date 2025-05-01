@@ -1,10 +1,11 @@
 
+
 export interface ProjectDetails {
   _id?: string; // Optional: ObjectId from MongoDB
   projectId?: string // Optional: Keep if used elsewhere, but _id is standard
   projectName: string;
   projectDescription?: string;
-  projectType: 'Casa nueva' | 'Remodelación parcial' | 'Remodelación total' | 'Edificio residencial' | 'Edificio comercial' | 'Otro';
+  projectType: string; // Keep as string, validation can be done elsewhere if needed
   projectLocation?: string;
   totalBudget: number;
   currency: string;
@@ -17,14 +18,15 @@ export interface ProjectDetails {
 }
 
 export interface InitialPlan {
+  _id?: string; // Optional MongoDB ObjectId if phases are subdocuments with own IDs
   phaseId: string; // UUID for frontend key/reference
   phaseName: string;
-  estimatedDuration: number; // Keep name consistent
+  estimatedDuration: number; // Use consistent name
   estimatedCost: number;
   order: number; // Add order field
 }
 
-// New type for the data structure of the InitialPlan document
+// New type for the data structure of the InitialPlan document fetched from API
 export interface InitialPlanDocument {
     _id?: string; // MongoDB ObjectId
     projectId: string; // Reference to Project _id
