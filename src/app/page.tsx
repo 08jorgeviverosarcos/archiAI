@@ -6,7 +6,7 @@ import { PlanDisplay } from '@/components/PlanDisplay';
 import { ProjectSelector } from '@/components/ProjectSelector'; // New component
 import { ProjectDetails, InitialPlan as InitialPlanType } from '@/types'; // Use specific type
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react'; // For loading state
+import { Loader2, ArrowLeft } from 'lucide-react'; // Import ArrowLeft
 import { useToast } from '@/hooks/use-toast';
 
 export default function Home() {
