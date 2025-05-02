@@ -45,36 +45,60 @@ export default function PhaseTasksPage() {
     // Fetch phase details and tasks
     const fetchPhaseData = useCallback(async () => {
         if (!projectId || !phaseUUID) return;
+        console.log(`Fetching data for projectId: ${projectId}, phaseUUID: ${phaseUUID}`);
         setIsLoading(true);
         setError(null);
         try {
-            // 1. Fetch InitialPlan to find the phase details by UUID
+            // 1. Fetch InitialPlan directly using projectId to find the phase details by UUID
+            console.log(`Fetching initial plan for project ID: ${projectId}`);
             const planRes = await fetch(`/api/initial-plans/${projectId}`); // Fetch plan by projectId
+            console.log(`Initial plan fetch status: ${planRes.status}`);
             if (!planRes.ok) {
-                if (planRes.status === 404) throw new Error("Planificación inicial no encontrada para este proyecto.");
-                throw new Error("Fallo al cargar la planificación inicial.");
+                if (planRes.status === 404) {
+                    throw new Error("Planificación inicial no encontrada para este proyecto.");
+                }
+                let errorMsg = "Fallo al cargar la planificación inicial.";
+                try {
+                    const errorData = await planRes.json();
+                    errorMsg = errorData.message || errorMsg;
+                } catch (e) {/* ignore */}
+                throw new Error(errorMsg);
             }
             const planData = await planRes.json();
+            console.log("Fetched initial plan data:", planData);
+
+            // Find the specific phase within the fetched plan using phaseUUID
             const foundPhase = planData.initialPlan?.phases?.find((p: InitialPlanPhase) => p.phaseId === phaseUUID);
+            console.log("Found phase:", foundPhase);
 
             if (foundPhase) {
                 setPhaseDetails(foundPhase);
             } else {
-                throw new Error(`Fase con UUID ${phaseUUID} no encontrada en el proyecto ${projectId}`);
+                // Phase not found within the plan
+                throw new Error(`Fase con UUID ${phaseUUID} no encontrada en la planificación del proyecto ${projectId}`);
             }
 
             // 2. Fetch tasks for this specific phase UUID and project ID
+            console.log(`Fetching tasks for projectId: ${projectId}, phaseUUID: ${phaseUUID}`);
             const tasksRes = await fetch(`/api/tasks?projectId=${projectId}&phaseUUID=${phaseUUID}`);
+            console.log(`Tasks fetch status: ${tasksRes.status}`);
             if (!tasksRes.ok) {
-                throw new Error("Fallo al cargar las tareas para esta fase.");
+                 let errorMsg = "Fallo al cargar las tareas para esta fase.";
+                try {
+                    const errorData = await tasksRes.json();
+                    errorMsg = errorData.message || errorMsg;
+                } catch (e) {/* ignore */}
+                throw new Error(errorMsg);
             }
             const tasksData = await tasksRes.json();
             setTasks(tasksData.tasks || []);
             console.log("Tasks fetched:", tasksData.tasks);
 
         } catch (err: any) {
-            console.error("Error loading phase tasks:", err);
+            console.error("Error loading phase tasks page:", err);
             setError(`No se pudieron cargar los datos de la fase: ${err.message}`);
+            setPhaseDetails(null); // Clear phase details on error
+            setTasks([]); // Clear tasks on error
             toast({
                 variant: "destructive",
                 title: "Error",
@@ -82,6 +106,7 @@ export default function PhaseTasksPage() {
             });
         } finally {
             setIsLoading(false);
+            console.log("Finished fetching phase data.");
         }
     }, [projectId, phaseUUID, toast]);
 
@@ -130,8 +155,12 @@ export default function PhaseTasksPage() {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to delete task');
+                let errorMsg = 'Failed to delete task';
+                try {
+                    const errorData = await response.json();
+                    errorMsg = errorData.message || errorMsg;
+                } catch(e) {/* ignore */}
+                throw new Error(errorMsg);
             }
 
             toast({
@@ -159,16 +188,30 @@ export default function PhaseTasksPage() {
         );
     }
 
-     if (error || !phaseDetails) {
+     // Error state or if phase details couldn't be loaded
+     if (error) {
         return (
             <div className="container mx-auto p-4 md:p-8 text-center">
-                 <p className="text-destructive mb-4">{error || 'Detalles de la fase no encontrados.'}</p>
+                 <p className="text-destructive mb-4">{error}</p>
                 <Button variant="outline" onClick={() => router.push(`/dashboard/${projectId}`)}>
                     <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Dashboard
                 </Button>
             </div>
         );
     }
+
+    // If loading is finished but phaseDetails is still null (should be caught by error state now)
+    if (!phaseDetails) {
+         return (
+            <div className="container mx-auto p-4 md:p-8 text-center">
+                 <p className="text-muted-foreground mb-4">No se encontraron los detalles de la fase.</p>
+                <Button variant="outline" onClick={() => router.push(`/dashboard/${projectId}`)}>
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Dashboard
+                </Button>
+            </div>
+        );
+    }
+
 
     return (
         <div className="container mx-auto p-4 md:p-8 space-y-6">
@@ -235,10 +278,13 @@ export default function PhaseTasksPage() {
                                                  <Edit className="h-4 w-4" />
                                                  <span className="sr-only">Editar</span>
                                              </Button>
-                                             <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task._id!)}>
-                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                                <span className="sr-only">Eliminar</span>
-                                             </Button>
+                                             {/* Ensure task._id is not undefined before calling delete */}
+                                             {task._id && (
+                                                 <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task._id!)}>
+                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                    <span className="sr-only">Eliminar</span>
+                                                 </Button>
+                                             )}
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -257,3 +303,5 @@ export default function PhaseTasksPage() {
         </div>
     );
 }
+
+    
