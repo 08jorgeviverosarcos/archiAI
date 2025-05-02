@@ -22,7 +22,8 @@ export default function ProjectDashboardPage() {
     const { toast } = useToast();
 
     const [project, setProject] = useState<ProjectDetails | null>(null);
-    const [initialPlan, setInitialPlan] = useState<InitialPlanType[] | null>(null); // State for plan phases
+    const [initialPlanPhases, setInitialPlanPhases] = useState<InitialPlanType[] | null>(null); // State specifically for phases array
+    const [initialPlanTotalCost, setInitialPlanTotalCost] = useState<number | null>(null); // State for plan's total cost
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -31,11 +32,12 @@ export default function ProjectDashboardPage() {
             if (!projectId) return;
             setIsLoading(true);
             setError(null);
-            setInitialPlan(null); // Reset plan on new load
+            setInitialPlanPhases(null); // Reset plan phases on new load
+            setInitialPlanTotalCost(null); // Reset plan cost
             try {
-                // Fetch Project Details
+                // 1. Fetch Project Details
                 console.log(`Fetching project details for ID: ${projectId}`);
-                const projectRes = await fetch(`/api/projects/${projectId}`); // API endpoint for single project
+                const projectRes = await fetch(`/api/projects/${projectId}`);
                 console.log(`Project details response status: ${projectRes.status}`);
                 if (!projectRes.ok) {
                     let errorMsg = 'Failed to fetch project details';
@@ -49,46 +51,44 @@ export default function ProjectDashboardPage() {
                 console.log('Fetched project data:', projectData);
                 setProject(projectData.project);
 
-                // Fetch Initial Plan if linked
-                const planId = projectData.project?.initialPlanId;
-                if (planId) {
-                    console.log(`Fetching initial plan details for ID: ${planId}`);
-                    const planRes = await fetch(`/api/initial-plans/${planId}`);
-                    console.log(`Initial plan response status: ${planRes.status}`);
-                     if (!planRes.ok) {
-                        if (planRes.status === 404) {
-                             console.warn(`Initial plan not found for project ${projectId} with plan ID ${planId}`);
-                             setInitialPlan(null); // No plan available
-                             toast({
-                                variant: "default",
-                                title: "Planificación No Encontrada",
-                                description: "Este proyecto no tiene una planificación inicial detallada aún.",
-                            });
-                        } else {
-                             let errorMsg = 'Failed to fetch initial plan';
-                             try {
-                                 const errorData = await planRes.json();
-                                 errorMsg = errorData.message || errorMsg;
-                             } catch (e) {/* ignore */}
-                            throw new Error(errorMsg);
-                        }
-                     } else {
-                        const planData = await planRes.json();
-                        console.log('Fetched initial plan data:', planData);
-                        // Ensure planData.initialPlan exists and has a phases array
-                        if (planData && planData.initialPlan && Array.isArray(planData.initialPlan.phases)) {
-                            // Sort phases by order before setting state
-                            const sortedPhases = [...planData.initialPlan.phases].sort((a, b) => a.order - b.order);
-                            setInitialPlan(sortedPhases);
-                            console.log("Successfully set initial plan state with sorted phases:", sortedPhases);
-                        } else {
-                            console.warn(`Initial plan data for ID ${planId} is missing structure or phases.`, planData);
-                            setInitialPlan(null); // Set to null if structure is wrong
-                        }
-                     }
+                // 2. Fetch Initial Plan using projectId
+                console.log(`Fetching initial plan details using project ID: ${projectId}`);
+                // The API route now uses the project ID as the parameter
+                const planRes = await fetch(`/api/initial-plans/${projectId}`);
+                console.log(`Initial plan response status: ${planRes.status}`);
+                if (!planRes.ok) {
+                    if (planRes.status === 404) {
+                        console.warn(`Initial plan not found for project ${projectId}`);
+                        setInitialPlanPhases(null); // No plan available
+                        setInitialPlanTotalCost(0); // Assume 0 cost if no plan
+                        toast({
+                            variant: "default",
+                            title: "Planificación No Encontrada",
+                            description: "Este proyecto no tiene una planificación inicial detallada aún.",
+                        });
+                    } else {
+                        let errorMsg = 'Failed to fetch initial plan';
+                        try {
+                            const errorData = await planRes.json();
+                            errorMsg = errorData.message || errorMsg;
+                        } catch (e) {/* ignore */}
+                        throw new Error(errorMsg);
+                    }
                 } else {
-                    console.log(`Project ${projectId} has no initialPlanId linked.`);
-                    setInitialPlan(null); // No plan linked
+                    const planData = await planRes.json();
+                    console.log('Fetched initial plan data:', planData);
+                    // Ensure planData.initialPlan exists and has a phases array
+                    if (planData && planData.initialPlan && Array.isArray(planData.initialPlan.phases)) {
+                        // Sort phases by order before setting state
+                        const sortedPhases = [...planData.initialPlan.phases].sort((a, b) => Number(a.order) - Number(b.order));
+                        setInitialPlanPhases(sortedPhases);
+                        setInitialPlanTotalCost(planData.initialPlan.totalEstimatedCost || 0); // Get total cost from plan
+                        console.log("Successfully set initial plan state with sorted phases:", sortedPhases);
+                    } else {
+                        console.warn(`Initial plan data for project ${projectId} is missing structure or phases.`, planData);
+                        setInitialPlanPhases(null); // Set to null if structure is wrong
+                        setInitialPlanTotalCost(0);
+                    }
                 }
 
             } catch (err: any) {
@@ -130,8 +130,8 @@ export default function ProjectDashboardPage() {
         );
     }
 
-    // Calculate total estimated cost from the fetched plan if available
-    const planTotalEstimatedCost = initialPlan?.reduce((sum, phase) => sum + (phase.estimatedCost || 0), 0);
+    // Determine if plan cost exceeds project budget
+    const budgetExceeded = initialPlanTotalCost !== null && project.totalBudget !== null && initialPlanTotalCost > project.totalBudget;
 
 
     return (
@@ -171,9 +171,9 @@ export default function ProjectDashboardPage() {
                             </div>
                              <div className="flex justify-between">
                                 <span>Costo Estimado (Plan):</span>
-                                {/* Display cost from fetched plan or project's stored value as fallback */}
-                                <span className={`font-medium ${planTotalEstimatedCost && project.totalBudget && planTotalEstimatedCost > project.totalBudget ? 'text-destructive' : ''}`}>
-                                    {(planTotalEstimatedCost ?? project.totalEstimatedCost ?? 0).toLocaleString() || 'N/A'} {project.currency}
+                                <span className={`font-medium ${budgetExceeded ? 'text-destructive' : ''}`}>
+                                    {/* Display cost from fetched plan's total cost */}
+                                    {(initialPlanTotalCost ?? 0).toLocaleString() || 'N/A'} {project.currency}
                                 </span>
                             </div>
                              {/* Add more budget details later */}
@@ -190,9 +190,9 @@ export default function ProjectDashboardPage() {
                          <CardDescription>Haz clic en una fase para gestionar sus tareas.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                         {initialPlan && initialPlan.length > 0 ? (
+                         {initialPlanPhases && initialPlanPhases.length > 0 ? (
                             <div className="space-y-2">
-                                {initialPlan.map(phase => (
+                                {initialPlanPhases.map(phase => (
                                     <Button
                                         key={phase.phaseId} // Use unique phaseId from plan
                                         variant="outline"
@@ -208,7 +208,7 @@ export default function ProjectDashboardPage() {
                             <p className="text-muted-foreground italic">No hay fases definidas en la planificación inicial para este proyecto.</p>
                          ) : null /* Don't show anything while loading */}
                          {/* Remove placeholder when list is populated */}
-                         {/* {(!initialPlan || initialPlan.length === 0) && <PhaseListPlaceholder />} */}
+                         {/* {(!initialPlanPhases || initialPlanPhases.length === 0) && <PhaseListPlaceholder />} */}
                     </CardContent>
                 </Card>
 

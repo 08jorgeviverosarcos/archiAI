@@ -23,11 +23,8 @@ export async function GET(req: Request, { params }: { params: Params }) {
     await connectDB(); // Ensure database connection
 
     // Fetch the project by its ID
-    // Decide if you want to populate the initialPlan here or let the frontend fetch separately
-    // For dashboard, fetching project details first might be better.
-    const project = await Project.findById(id)
-        // .populate('initialPlan') // Optionally populate if needed immediately
-        .lean(); // Use lean for performance if not modifying
+    // We no longer need to worry about populating or handling initialPlanId here
+    const project = await Project.findById(id).lean(); // Use lean for performance if not modifying
 
     if (!project) {
       return new NextResponse(JSON.stringify({ message: 'Project not found' }), {
@@ -36,12 +33,7 @@ export async function GET(req: Request, { params }: { params: Params }) {
       });
     }
 
-    // Convert ObjectId to string if needed by frontend/types
-     if (project.initialPlan) {
-        project.initialPlanId = project.initialPlan.toString();
-        delete project.initialPlan; // Remove the ObjectId if sending string ID
-     }
-
+    // No need to handle initialPlanId anymore in the Project response
 
     return NextResponse.json({ project });
 

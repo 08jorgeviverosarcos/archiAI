@@ -8,12 +8,13 @@ import { ProjectDetails, InitialPlan as InitialPlanType } from '@/types'; // Use
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft } from 'lucide-react'; // Import ArrowLeft
 import { useToast } from '@/hooks/use-toast';
+import { Toaster } from '@/components/ui/toaster'; // Import Toaster
 
 export default function Home() {
   const [projects, setProjects] = useState<ProjectDetails[]>([]);
   const [selectedProject, setSelectedProject] = useState<ProjectDetails | null>(null);
   const [initialPlan, setInitialPlan] = useState<InitialPlanType[] | null>(null);
-  const [initialPlanId, setInitialPlanId] = useState<string | null>(null); // Store InitialPlan ID
+  const [initialPlanId, setInitialPlanId] = useState<string | null>(null); // Store InitialPlan _id
   const [isLoading, setIsLoading] = useState(true); // Start loading initially for project fetch
   const [isCreatingProject, setIsCreatingProject] = useState(false); // State to show/hide creation form
   const [error, setError] = useState<string | null>(null);
@@ -35,9 +36,8 @@ export default function Home() {
         console.log("Fetched projects data:", data);
         setProjects(data.projects || []);
         if (!data.projects || data.projects.length === 0) {
-            console.log("No projects found, setting isCreatingProject to true");
-            // If no projects exist, default to the creation form
-            // setIsCreatingProject(true); // Commenting out for now to show selector/creation prompt first
+            console.log("No projects found.");
+            // Don't automatically switch to creation, let user choose
         }
       } catch (err: any) {
         console.error("Error fetching projects:", err);
@@ -59,87 +59,79 @@ export default function Home() {
   // Fetch initial plan when a project is selected
   useEffect(() => {
     const fetchInitialPlan = async () => {
-      if (selectedProject?._id && selectedProject?.initialPlanId) {
-        console.log(`Fetching initial plan for project ${selectedProject._id} with plan ID ${selectedProject.initialPlanId}`);
+      if (selectedProject?._id) { // Check if a project is selected
+        const projectId = selectedProject._id;
+        console.log(`Fetching initial plan using project ID: ${projectId}`);
         setIsLoading(true); // Show loading when fetching plan
         setError(null); // Clear previous errors
-        setInitialPlan(null); // Clear previous plan
+        setInitialPlan(null); // Clear previous plan phases
         setInitialPlanId(null); // Clear previous plan ID
         try {
-          // Fetch the specific InitialPlan document using its ID
-          const response = await fetch(`/api/initial-plans/${selectedProject.initialPlanId}`);
-           console.log(`Initial plan API response status for ID ${selectedProject.initialPlanId}:`, response.status);
-           if (!response.ok) {
-              // Handle case where plan is not found or other errors
-              if (response.status === 404) {
-                 setInitialPlan(null); // No plan found for this project yet
-                 setInitialPlanId(selectedProject.initialPlanId); // Might still need the ID if a plan needs creating/saving later
-                 console.warn(`Initial plan not found for project ${selectedProject._id}, ID: ${selectedProject.initialPlanId}`);
-                 toast({
-                     variant: "default", // Use default variant for info
-                     title: "Planificación no encontrada",
-                     description: "No se encontró una planificación inicial guardada para este proyecto.",
-                 });
-              } else {
-                 let errorMsg = `Failed to fetch initial plan: ${response.statusText}`;
-                 try {
-                    const errorData = await response.json();
-                    errorMsg = errorData.message || errorMsg;
-                 } catch (e) { /* Ignore if response is not JSON */ }
-                 throw new Error(errorMsg);
-              }
-           } else {
-                const planData = await response.json();
-                console.log("Fetched Initial Plan Data:", JSON.stringify(planData, null, 2)); // Log fetched data
-                // Ensure the structure is correct and phases exist
-                if (planData && planData.initialPlan && Array.isArray(planData.initialPlan.phases)) {
-                    // Sort phases by order before setting state
-                    const sortedPhases = [...planData.initialPlan.phases].sort((a, b) => a.order - b.order);
-                    setInitialPlan(sortedPhases);
-                    setInitialPlanId(planData.initialPlan._id || selectedProject.initialPlanId); // Use fetched ID or fallback
-                    console.log("Successfully set initial plan state with sorted phases:", sortedPhases);
-                } else {
-                    console.warn("Fetched plan data is missing expected structure or phases array:", planData);
-                    setInitialPlan(null);
-                    setInitialPlanId(selectedProject.initialPlanId); // Keep ID reference
-                     toast({
-                         variant: "default",
-                         title: "Planificación Vacía",
-                         description: "La planificación inicial existe pero no contiene fases.",
-                     });
-                }
-           }
+          // Fetch the InitialPlan document using the projectId
+          // API route now expects projectId: /api/initial-plans/[projectId]
+          const response = await fetch(`/api/initial-plans/${projectId}`);
+          console.log(`Initial plan API response status for project ID ${projectId}:`, response.status);
+
+          if (!response.ok) {
+            if (response.status === 404) {
+              setInitialPlan(null); // No plan found for this project yet
+              setInitialPlanId(null); // No plan ID to store
+              console.warn(`Initial plan not found for project ${projectId}`);
+              toast({
+                variant: "default", // Use default variant for info
+                title: "Planificación no encontrada",
+                description: "No se encontró una planificación inicial guardada para este proyecto.",
+              });
+            } else {
+              let errorMsg = `Failed to fetch initial plan: ${response.statusText}`;
+              try {
+                const errorData = await response.json();
+                errorMsg = errorData.message || errorMsg;
+              } catch (e) { /* Ignore if response is not JSON */ }
+              throw new Error(errorMsg);
+            }
+          } else {
+            const planData = await response.json();
+            console.log("Fetched Initial Plan Data:", JSON.stringify(planData, null, 2)); // Log fetched data
+
+            // The API returns { initialPlan: { _id: ..., projectId: ..., phases: [...] } }
+            if (planData && planData.initialPlan && Array.isArray(planData.initialPlan.phases)) {
+              // Sort phases by order before setting state
+              const sortedPhases = [...planData.initialPlan.phases].sort((a, b) => Number(a.order) - Number(b.order));
+              setInitialPlan(sortedPhases);
+              setInitialPlanId(planData.initialPlan._id); // Store the _id of the InitialPlan document
+              console.log("Successfully set initial plan state with sorted phases:", sortedPhases);
+            } else {
+              console.warn("Fetched plan data is missing expected structure or phases array:", planData);
+              setInitialPlan(null);
+              setInitialPlanId(null);
+              toast({
+                variant: "default",
+                title: "Planificación Vacía",
+                description: "La planificación inicial existe pero no contiene fases.",
+              });
+            }
+          }
 
         } catch (err: any) {
           console.error("Error fetching initial plan:", err);
-           toast({
-                variant: "destructive",
-                title: "Error",
-                description: `No se pudo cargar la planificación inicial: ${err.message}`,
-            });
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: `No se pudo cargar la planificación inicial: ${err.message}`,
+          });
           setInitialPlan(null); // Reset plan on error
           setInitialPlanId(null);
           setError(`Failed to load initial plan: ${err.message}`); // Set error state
         } finally {
-            console.log("Finished fetching initial plan, setting isLoading to false");
-            setIsLoading(false);
+          console.log("Finished fetching initial plan, setting isLoading to false");
+          setIsLoading(false);
         }
-      } else if (selectedProject && !selectedProject.initialPlanId) {
-          // Handle cases where the project exists but the initialPlan link is missing or null
-          console.warn(`Project ${selectedProject._id} does not have an associated initialPlanId.`);
-          setInitialPlan(null);
-          setInitialPlanId(null);
-          setIsLoading(false); // Ensure loading stops
-           toast({
-               variant: "default",
-               title: "Sin Planificación Asociada",
-               description: "Este proyecto aún no tiene una planificación inicial asociada.",
-           });
       } else {
-           // If no project is selected, ensure loading is false
-           if (!selectedProject) {
-               setIsLoading(false);
-           }
+        // If no project is selected, ensure loading is false
+        if (!selectedProject) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -170,7 +162,7 @@ export default function Home() {
     const handleProjectCreated = (newProject: ProjectDetails, plan: InitialPlanType[] | null, planId: string | null) => {
         console.log("Project created callback:", newProject, plan, planId);
         // Add the new project to the list locally or refetch
-        setProjects(prev => [newProject, ...prev]);
+        setProjects(prev => [newProject, ...prev].sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))); // Sort by creation date
         setSelectedProject(newProject); // Select the newly created project
         setInitialPlan(plan);
         setInitialPlanId(planId);
@@ -207,31 +199,12 @@ export default function Home() {
 
     // If a project is selected, show the PlanDisplay
     if (selectedProject) {
-        // Pass initialPlanId and projectId
-        // Also handle the case where plan is still loading or failed to load
-         if (isLoading) { // Still loading plan
-             return (
-                <div className="flex justify-center items-center min-h-[200px]">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <span className="ml-2">Cargando planificación...</span>
-                </div>
-             );
-         }
-         // Check for error specific to plan loading
-         if (error && initialPlan === null) {
-            return (
-                <div className="text-center">
-                    <p className="text-destructive mb-4">Error al cargar la planificación: {error}</p>
-                    {/* Optionally add a retry button */}
-                </div>
-            );
-         }
-         // Plan loaded (or not found but no error), show display
+        // Pass selectedProject details, fetched plan, and the IDs
         return (
             <PlanDisplay
-            projectDetails={selectedProject}
-            initialPlan={initialPlan}
-            initialPlanId={initialPlanId}
+            projectDetails={selectedProject} // Pass the whole selected project object
+            initialPlan={initialPlan} // Pass the fetched phases
+            initialPlanId={initialPlanId} // Pass the _id of the InitialPlan document
             projectId={selectedProject._id || null} // Pass MongoDB _id as projectId
             setSelectedProject={setSelectedProject} // Pass setter to allow going back
             />
@@ -255,9 +228,9 @@ export default function Home() {
             <h1 className="text-3xl font-bold mb-6 text-center">ArchiPlanAI</h1>
             {projects.length > 0 ? (
              <ProjectSelector projects={projects} onSelectProject={handleSelectProject} />
-            ) : (
+            ) : !isLoading ? ( // Only show creation prompt if not loading and no projects
              <p className="text-center text-muted-foreground">No tienes proyectos creados.</p>
-            )}
+            ) : null /* Don't show anything while loading */}
             <div className="mt-6 text-center">
                  <Button onClick={handleCreateNewProject}>
                    Crear Nuevo Proyecto
@@ -289,6 +262,7 @@ export default function Home() {
          </Button>
        )}
       {renderContent()}
+      <Toaster /> {/* Add Toaster component here */}
     </div>
   );
 }
