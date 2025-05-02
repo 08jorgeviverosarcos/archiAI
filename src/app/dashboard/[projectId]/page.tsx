@@ -1,8 +1,9 @@
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ProjectDetails, InitialPlan as InitialPlanType } from '@/types'; // Use specific type for plan phases
+import { ProjectDetails, InitialPlanPhase } from '@/types'; // Use InitialPlanPhase type
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, GanttChartSquare, ListTodo, Settings, DollarSign, Edit } from 'lucide-react'; // Icons
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,8 +12,6 @@ import { Toaster } from '@/components/ui/toaster';
 
 // Placeholder components - replace with actual implementations
 const GanttChartPlaceholder = () => <div className="p-4 border rounded bg-muted h-64 flex items-center justify-center text-muted-foreground">Diagrama de Gantt (Próximamente)</div>;
-// const BudgetSummaryPlaceholder = () => <div className="p-4 border rounded bg-muted flex items-center justify-center text-muted-foreground">Resumen de Presupuesto (Próximamente)</div>;
-// const PhaseListPlaceholder = () => <div className="p-4 border rounded bg-muted flex items-center justify-center text-muted-foreground">Lista de Fases (Próximamente)</div>;
 
 
 export default function ProjectDashboardPage() {
@@ -22,7 +21,7 @@ export default function ProjectDashboardPage() {
     const { toast } = useToast();
 
     const [project, setProject] = useState<ProjectDetails | null>(null);
-    const [initialPlanPhases, setInitialPlanPhases] = useState<InitialPlanType[] | null>(null); // State specifically for phases array
+    const [initialPlanPhases, setInitialPlanPhases] = useState<InitialPlanPhase[] | null>(null); // Use InitialPlanPhase[]
     const [initialPlanTotalCost, setInitialPlanTotalCost] = useState<number | null>(null); // State for plan's total cost
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -53,7 +52,6 @@ export default function ProjectDashboardPage() {
 
                 // 2. Fetch Initial Plan using projectId
                 console.log(`Fetching initial plan details using project ID: ${projectId}`);
-                // The API route now uses the project ID as the parameter
                 const planRes = await fetch(`/api/initial-plans/${projectId}`);
                 console.log(`Initial plan response status: ${planRes.status}`);
                 if (!planRes.ok) {
@@ -77,30 +75,26 @@ export default function ProjectDashboardPage() {
                 } else {
                     const planData = await planRes.json();
                     console.log('Fetched initial plan data:', planData);
-                    // Ensure planData.initialPlan exists and has a phases array
                     if (planData && planData.initialPlan && Array.isArray(planData.initialPlan.phases)) {
-                        // Sort phases by order before setting state
                         const sortedPhases = [...planData.initialPlan.phases].sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0));
                         setInitialPlanPhases(sortedPhases);
-                        setInitialPlanTotalCost(planData.initialPlan.totalEstimatedCost || 0); // Get total cost from plan
+                        setInitialPlanTotalCost(planData.initialPlan.totalEstimatedCost || 0);
                         console.log("Successfully set initial plan state with sorted phases:", sortedPhases);
                     } else {
                         console.warn(`Initial plan data for project ${projectId} is missing structure or phases.`, planData);
-                        setInitialPlanPhases(null); // Set to null if structure is wrong
+                        setInitialPlanPhases(null);
                         setInitialPlanTotalCost(0);
                     }
                 }
 
             } catch (err: any) {
                 console.error("Error loading dashboard:", err);
-                setError(`Could not load project data: ${err.message}`);
+                setError(`No se pudieron cargar los datos del proyecto: ${err.message}`);
                  toast({
                     variant: "destructive",
                     title: "Error",
                     description: `No se pudieron cargar los datos del proyecto: ${err.message}`,
                 });
-                 // Optional: Redirect back if project load fails fundamentally
-                 // router.push('/');
             } finally {
                 setIsLoading(false);
                 console.log("Finished fetching dashboard data.");
@@ -181,19 +175,15 @@ export default function ProjectDashboardPage() {
                         <div className="space-y-2 text-sm mb-4">
                             <div className="flex justify-between">
                                 <span>Presupuesto Total:</span>
-                                <span className="font-medium">{project.totalBudget?.toLocaleString() || 'N/A'} {project.currency}</span>
+                                <span className="font-medium">{(project.totalBudget ?? 0).toLocaleString()} {project.currency}</span>
                             </div>
                              <div className="flex justify-between">
                                 <span>Costo Estimado (Plan):</span>
                                 <span className={`font-medium ${budgetExceeded ? 'text-destructive' : ''}`}>
-                                    {/* Display cost from fetched plan's total cost */}
-                                    {(initialPlanTotalCost ?? 0).toLocaleString() || 'N/A'} {project.currency}
+                                    {(initialPlanTotalCost ?? 0).toLocaleString()} {project.currency}
                                 </span>
                             </div>
-                             {/* Add more budget details later */}
                         </div>
-                        {/* Placeholder can be removed when real budget component is ready */}
-                        {/* <BudgetSummaryPlaceholder /> */}
                     </CardContent>
                 </Card>
 
@@ -211,33 +201,18 @@ export default function ProjectDashboardPage() {
                                         key={phase.phaseId} // Use unique phaseId from plan
                                         variant="outline"
                                         className="w-full justify-start"
-                                         onClick={() => router.push(`/dashboard/${projectId}/phases/${phase.phaseId}`)} // Navigate to phase detail using phaseId
+                                         // Navigate using the phase's UUID
+                                         onClick={() => router.push(`/dashboard/${projectId}/phases/${phase.phaseId}`)}
                                     >
                                         {phase.phaseName} ({phase.estimatedDuration} días - {(phase.estimatedCost ?? 0).toLocaleString()} {project.currency})
-                                        {/* Add status indicator later */}
                                     </Button>
                                 ))}
                             </div>
                          ) : !isLoading ? ( // Only show message if not loading and plan is empty/null
                             <p className="text-muted-foreground italic">No hay fases definidas en la planificación inicial para este proyecto.</p>
                          ) : null /* Don't show anything while loading */}
-                         {/* Remove placeholder when list is populated */}
-                         {/* {(!initialPlanPhases || initialPlanPhases.length === 0) && <PhaseListPlaceholder />} */}
                     </CardContent>
                 </Card>
-
-                {/* Project Settings Area (Optional) */}
-                 {/*
-                 <Card>
-                     <CardHeader>
-                         <CardTitle className="flex items-center gap-2"><Settings className="h-5 w-5 text-gray-600"/>Configuración</CardTitle>
-                         <CardDescription>Gestionar detalles del proyecto.</CardDescription>
-                     </CardHeader>
-                     <CardContent>
-                         <Button variant="secondary" size="sm">Editar Proyecto</Button>
-                     </CardContent>
-                 </Card>
-                 */}
 
             </div>
              <Toaster />

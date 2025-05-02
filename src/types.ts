@@ -11,15 +11,15 @@ export interface ProjectDetails {
   currency: string;
   functionalRequirements: string;
   aestheticPreferences?: string;
-  initialPlanId?: string; // ID of the associated InitialPlan document
-  totalEstimatedCost?: number; // Add this if needed on the frontend Project object
+  // initialPlanId?: string; // This is implicitly handled by the InitialPlan document's projectId field now
+  totalEstimatedCost?: number; // Cost calculated from InitialPlan phases
   createdAt?: Date; // Add timestamps if needed on frontend
   updatedAt?: Date;
 }
 
-export interface InitialPlan {
+export interface InitialPlanPhase {
   _id?: string; // Optional MongoDB ObjectId if phases are subdocuments with own IDs
-  phaseId: string; // UUID for frontend key/reference
+  phaseId: string; // UUID for frontend key/reference, keep as string
   phaseName: string;
   estimatedDuration: number; // Use consistent name
   estimatedCost: number;
@@ -30,8 +30,27 @@ export interface InitialPlan {
 export interface InitialPlanDocument {
     _id?: string; // MongoDB ObjectId
     projectId: string; // Reference to Project _id
-    phases: InitialPlan[];
+    phases: InitialPlanPhase[];
     totalEstimatedCost: number;
+    createdAt?: Date;
+    updatedAt?: Date;
+}
+
+
+// New Task interface
+export interface Task {
+    _id?: string; // MongoDB ObjectId
+    projectId: string; // Reference to Project _id (as string or ObjectId depending on backend)
+    phaseUUID: string; // UUID of the associated phase (from InitialPlanPhase.phaseId)
+    title: string;
+    description?: string;
+    quantity: number;
+    unitOfMeasure: string; // e.g., 'm²', 'unitario', 'kg', 'hr'
+    unitPrice: number;
+    status: 'Pendiente' | 'En Progreso' | 'Realizado';
+    profitMargin?: number; // Optional percentage
+    laborCost?: number; // Optional estimated labor cost
+    estimatedCost: number; // Calculated: quantity * unitPrice + laborCost (if applicable)
     createdAt?: Date;
     updatedAt?: Date;
 }

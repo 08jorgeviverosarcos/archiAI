@@ -1,0 +1,259 @@
+
+'use client';
+
+import React, { useEffect, useState, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft, Loader2, PlusCircle, Trash2, Edit } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { InitialPlanPhase, Task } from '@/types';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardFooter,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { TaskForm } from '@/components/TaskForm'; // Import the TaskForm component
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+
+
+export default function PhaseTasksPage() {
+    const params = useParams();
+    const router = useRouter();
+    const projectId = params.projectId as string;
+    const phaseUUID = params.phaseUUID as string; // Get the UUID from the route
+    const { toast } = useToast();
+
+    const [phaseDetails, setPhaseDetails] = useState<InitialPlanPhase | null>(null); // Store phase details
+    const [tasks, setTasks] = useState<Task[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [isFormOpen, setIsFormOpen] = useState(false); // State for the add/edit task dialog
+    const [editingTask, setEditingTask] = useState<Task | null>(null); // State for the task being edited
+
+    // Fetch phase details and tasks
+    const fetchPhaseData = useCallback(async () => {
+        if (!projectId || !phaseUUID) return;
+        setIsLoading(true);
+        setError(null);
+        try {
+            // 1. Fetch InitialPlan to find the phase details by UUID
+            const planRes = await fetch(`/api/initial-plans/${projectId}`); // Fetch plan by projectId
+            if (!planRes.ok) {
+                if (planRes.status === 404) throw new Error("Planificación inicial no encontrada para este proyecto.");
+                throw new Error("Fallo al cargar la planificación inicial.");
+            }
+            const planData = await planRes.json();
+            const foundPhase = planData.initialPlan?.phases?.find((p: InitialPlanPhase) => p.phaseId === phaseUUID);
+
+            if (foundPhase) {
+                setPhaseDetails(foundPhase);
+            } else {
+                throw new Error(`Fase con UUID ${phaseUUID} no encontrada en el proyecto ${projectId}`);
+            }
+
+            // 2. Fetch tasks for this specific phase UUID and project ID
+            const tasksRes = await fetch(`/api/tasks?projectId=${projectId}&phaseUUID=${phaseUUID}`);
+            if (!tasksRes.ok) {
+                throw new Error("Fallo al cargar las tareas para esta fase.");
+            }
+            const tasksData = await tasksRes.json();
+            setTasks(tasksData.tasks || []);
+            console.log("Tasks fetched:", tasksData.tasks);
+
+        } catch (err: any) {
+            console.error("Error loading phase tasks:", err);
+            setError(`No se pudieron cargar los datos de la fase: ${err.message}`);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: `No se pudieron cargar los datos de la fase: ${err.message}`,
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [projectId, phaseUUID, toast]);
+
+
+    useEffect(() => {
+        fetchPhaseData();
+    }, [fetchPhaseData]); // Fetch data when component mounts or dependencies change
+
+    // Handle opening the form for adding a new task
+    const handleAddTask = () => {
+        setEditingTask(null); // Ensure we are not editing
+        setIsFormOpen(true);
+    };
+
+    // Handle opening the form for editing an existing task
+    const handleEditTask = (task: Task) => {
+        setEditingTask(task);
+        setIsFormOpen(true);
+    };
+
+     // Handle closing the form
+     const handleFormClose = () => {
+         setIsFormOpen(false);
+         setEditingTask(null); // Clear editing state
+     };
+
+    // Callback function for when a task is saved (created or updated)
+    const handleTaskSaved = (savedTask: Task) => {
+        fetchPhaseData(); // Refetch tasks to show the latest data
+        handleFormClose(); // Close the dialog
+        toast({
+          title: editingTask ? 'Tarea Actualizada' : 'Tarea Creada',
+          description: `La tarea "${savedTask.title}" ha sido guardada exitosamente.`,
+        });
+    };
+
+    // Handle deleting a task
+     const handleDeleteTask = async (taskId: string) => {
+        if (!taskId) return;
+
+        // Optional: Add a confirmation dialog here
+
+        try {
+            const response = await fetch(`/api/tasks/${taskId}`, {
+                method: 'DELETE',
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to delete task');
+            }
+
+            toast({
+                title: 'Tarea Eliminada',
+                description: 'La tarea ha sido eliminada exitosamente.',
+            });
+            fetchPhaseData(); // Refresh the task list
+        } catch (err: any) {
+            console.error("Error deleting task:", err);
+            toast({
+                variant: "destructive",
+                title: "Error al Eliminar",
+                description: `No se pudo eliminar la tarea: ${err.message}`,
+            });
+        }
+     };
+
+
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center min-h-screen">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <span className="ml-2">Cargando tareas...</span>
+            </div>
+        );
+    }
+
+     if (error || !phaseDetails) {
+        return (
+            <div className="container mx-auto p-4 md:p-8 text-center">
+                 <p className="text-destructive mb-4">{error || 'Detalles de la fase no encontrados.'}</p>
+                <Button variant="outline" onClick={() => router.push(`/dashboard/${projectId}`)}>
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Dashboard
+                </Button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="container mx-auto p-4 md:p-8 space-y-6">
+             <div className="flex justify-between items-center mb-4">
+                 <div>
+                    <Button variant="ghost" size="sm" onClick={() => router.push(`/dashboard/${projectId}`)} className="mb-2">
+                        <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Dashboard
+                    </Button>
+                     <h1 className="text-2xl font-bold">Gestión de Tareas: {phaseDetails.phaseName}</h1>
+                     <p className="text-muted-foreground">Administra las tareas específicas para completar esta fase.</p>
+                 </div>
+                 <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+                    <DialogTrigger asChild>
+                         <Button onClick={handleAddTask}>
+                             <PlusCircle className="mr-2 h-4 w-4" /> Agregar Tarea
+                         </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[600px]"> {/* Adjust width as needed */}
+                        <DialogHeader>
+                            <DialogTitle>{editingTask ? 'Editar Tarea' : 'Agregar Nueva Tarea'}</DialogTitle>
+                        </DialogHeader>
+                        <TaskForm
+                            projectId={projectId}
+                            phaseUUID={phaseUUID}
+                            existingTask={editingTask} // Pass task if editing, null if adding
+                            onTaskSaved={handleTaskSaved}
+                            onCancel={handleFormClose}
+                         />
+                    </DialogContent>
+                </Dialog>
+            </div>
+
+            {/* Task List Area */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Lista de Tareas</CardTitle>
+                    <CardDescription>Tareas planeadas para la fase "{phaseDetails.phaseName}".</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {tasks.length > 0 ? (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Título</TableHead>
+                                    <TableHead>Estado</TableHead>
+                                    <TableHead className="text-right">Costo Est.</TableHead>
+                                    <TableHead className="text-right">Acciones</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {tasks.map((task) => (
+                                    <TableRow key={task._id}>
+                                        <TableCell className="font-medium">{task.title}</TableCell>
+                                        <TableCell>
+                                            <Badge variant={
+                                                task.status === 'Realizado' ? 'default' :
+                                                task.status === 'En Progreso' ? 'secondary' :
+                                                'outline' // Pendiente
+                                            }>{task.status}</Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right">{task.estimatedCost.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right space-x-2">
+                                             <Button variant="ghost" size="icon" onClick={() => handleEditTask(task)}>
+                                                 <Edit className="h-4 w-4" />
+                                                 <span className="sr-only">Editar</span>
+                                             </Button>
+                                             <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task._id!)}>
+                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                                <span className="sr-only">Eliminar</span>
+                                             </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    ) : (
+                        <p className="text-muted-foreground italic text-center py-4">No hay tareas definidas para esta fase aún.</p>
+                    )}
+                </CardContent>
+                {/* Optional Footer */}
+                {/* <CardFooter>
+                    <p>Total de tareas: {tasks.length}</p>
+                </CardFooter> */}
+            </Card>
+
+        </div>
+    );
+}
