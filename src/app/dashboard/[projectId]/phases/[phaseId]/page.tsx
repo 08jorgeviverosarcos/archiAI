@@ -57,13 +57,13 @@ export default function PhaseTasksPage() {
                  const projectData = await projectRes.json();
 
                  if (projectData.project?.initialPlanId) {
-                    const planRes = await fetch(`/api/initial-plans/${projectData.project.initialPlanId}`);
+                    const planRes = await fetch(`/api/initial-plans/${projectId}`);
                     if (!planRes.ok) {
                          if (planRes.status !== 404) throw new Error("Failed to fetch initial plan");
                          // Plan not found is ok here, phase won't be found either
                     } else {
                          const planData = await planRes.json();
-                         const foundPhase = planData.initialPlan?.phases?.find((p: InitialPlan) => p.phaseId === phaseId);
+                         const foundPhase = planData.initialPlan?.phases?.find((p: any) => p.phaseId === phaseId);
                          if (foundPhase) {
                              setPhaseDetails(foundPhase);
                          } else {
@@ -73,7 +73,12 @@ export default function PhaseTasksPage() {
                          setTasks([]); // Placeholder - fetch tasks here
                     }
                  } else {
-                     throw new Error("Project does not have an initial plan associated.");
+                    // Instead of throwing an error, handle the case where there is no initial plan
+                    console.warn("Project does not have an initial plan associated.");
+                    setError("Project does not have an initial plan associated.");
+                    setPhaseDetails(null);
+                    setTasks([]);
+                    return;
                  }
 
              } catch (err: any) {
@@ -140,3 +145,4 @@ export default function PhaseTasksPage() {
         </div>
     );
 }
+
