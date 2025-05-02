@@ -1,3 +1,4 @@
+
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -28,6 +29,8 @@ export async function GET(req: Request, { params }: { params: Params }) {
     console.log("Database connected for fetching initial plan by projectId.");
 
     // Fetch the initial plan using the projectId field
+    // Use populate to fetch tasks directly related to the project and phases within this plan
+    // This reduces the number of separate database calls.
     const initialPlan = await InitialPlan.findOne({ projectId: new mongoose.Types.ObjectId(projectId) }).lean(); // Use findOne with projectId
 
      if (!initialPlan) {
@@ -47,12 +50,14 @@ export async function GET(req: Request, { params }: { params: Params }) {
         console.log("Phases sorted by order.");
 
         // Fetch tasks for each phase and attach them to the phase object
+        // This loop is necessary if we don't use populate or if tasks aren't embedded
         for (const phase of initialPlan.phases) {
             const tasks = await Task.find({
                 projectId: new mongoose.Types.ObjectId(projectId),
                 phaseUUID: phase.phaseId, // Ensure this matches your task model
-            }).lean();
+            }).sort({ createdAt: 1 }).lean(); // Sort tasks as needed
             phase.tasks = tasks || []; // Add tasks array to the phase object
+            console.log(`Fetched ${tasks.length} tasks for phase ${phase.phaseId}`);
         }
      } else {
         console.warn(`Initial Plan for project ${projectId} has no phases or phases is not an array.`);
@@ -60,8 +65,7 @@ export async function GET(req: Request, { params }: { params: Params }) {
         initialPlan.phases = initialPlan.phases || [];
      }
 
-    // Return the entire initialPlan document, including phases
-    // The structure now returns { initialPlan: { _id: ..., projectId: ..., phases: [...] } }
+    // Return the entire initialPlan document, including phases with their tasks
     return NextResponse.json({ initialPlan });
 
   } catch (error) {

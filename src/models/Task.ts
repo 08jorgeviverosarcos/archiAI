@@ -27,25 +27,13 @@ const taskSchema = new Schema<ITask>(
   },
   {
     timestamps: true, // Automatically adds createdAt and updatedAt
-    // Auto-calculate estimatedCost before saving (example)
-    pre: ['save', 'updateOne', 'findOneAndUpdate', 'updateMany'], // Add pre-hook for relevant update operations
-    // Note: Complex pre-hooks might be better handled in service layer/API route logic
-    // This example is basic. Consider transactionality for production.
+    // Remove pre-save hook for cost calculation to handle it in API routes
+    // This provides more flexibility and avoids potential issues with update operations.
     toJSON: { virtuals: true }, // Ensure virtuals are included in JSON output
     toObject: { virtuals: true }, // Ensure virtuals are included when converting to object
   }
 );
 
-// Example pre-save hook to calculate estimatedCost (can be more complex)
-// Important: arrow functions don't bind `this` correctly in Mongoose hooks
-taskSchema.pre<ITask>('save', function(next) {
-  this.estimatedCost = (this.quantity * this.unitPrice) + (this.laborCost || 0);
-  // Add profit margin calculation if needed:
-  // if (this.profitMargin) {
-  //   this.estimatedCost = this.estimatedCost * (1 + this.profitMargin / 100);
-  // }
-  next();
-});
 
 // Define the Task model
 const Task: Model<ITask> = mongoose.models.Task || mongoose.model<ITask>('Task', taskSchema);
