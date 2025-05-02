@@ -4,7 +4,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, PlusCircle, Trash2, Edit, Calendar as CalendarIcon } from 'lucide-react'; // Use CalendarIcon alias
+import { ArrowLeft, Loader2, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { InitialPlanPhase, Task } from '@/types'; // Assuming InitialPlan defines the phase structure
 import {
@@ -90,13 +90,15 @@ export default function PhaseTasksPage() {
 
             if (foundPhase) {
                 setPhaseDetails(foundPhase);
+                 // Initialize tasks from the phase if they exist (though we'll refetch below)
+                // setTasks(foundPhase.tasks || []); // Commented out - fetching tasks separately
             } else {
                 // Phase not found within the plan
                 throw new Error(`Fase con UUID ${phaseUUID} no encontrada en la planificación del proyecto ${projectId}`);
             }
 
-             // 2. Fetch tasks for the specific phase
-             console.log(`Fetching tasks for phase UUID: ${phaseUUID}`);
+             // 2. Fetch tasks for the specific phase using the dedicated API endpoint
+             console.log(`Fetching tasks for project ${projectId}, phase UUID: ${phaseUUID}`);
              const tasksRes = await fetch(`/api/tasks?projectId=${projectId}&phaseUUID=${phaseUUID}`);
              console.log(`Tasks fetch status: ${tasksRes.status}`);
              if (!tasksRes.ok) {
@@ -108,8 +110,8 @@ export default function PhaseTasksPage() {
                  throw new Error(errorMsg);
              }
              const tasksData = await tasksRes.json();
-             console.log("Fetched tasks data:", tasksData);
-             setTasks(tasksData.tasks || []);
+             console.log("Fetched tasks data via dedicated endpoint:", tasksData);
+             setTasks(tasksData.tasks || []); // Update tasks state with fetched data
 
 
         } catch (err: any) {
@@ -247,10 +249,12 @@ export default function PhaseTasksPage() {
                              <PlusCircle className="mr-2 h-4 w-4" /> Agregar Tarea
                          </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[750px]"> {/* Increased width */}
+                     {/* Adjust DialogContent for scrolling */}
+                    <DialogContent className="sm:max-w-[750px] max-h-[90vh] flex flex-col">
                         <DialogHeader>
                             <DialogTitle>{editingTask ? 'Editar Tarea' : 'Agregar Nueva Tarea'}</DialogTitle>
                         </DialogHeader>
+                         {/* TaskForm will now handle its own scrolling */}
                         <TaskForm
                             projectId={projectId}
                             phaseUUID={phaseUUID}

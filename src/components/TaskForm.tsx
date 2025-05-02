@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale'; // Import Spanish locale for date formatting
 import { Slider } from '@/components/ui/slider'; // Import Slider
+import { ScrollArea } from '@/components/ui/scroll-area'; // Import ScrollArea
 
 // Zod schema for task validation - updated with new fields
 const taskFormSchema = z.object({
@@ -174,271 +175,278 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <FormField
-          control={form.control}
-          name="title"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Título de la Tarea</FormLabel>
-              <FormControl>
-                <Input placeholder="Ej. Instalación de piso" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Descripción (Opcional)</FormLabel>
-              <FormControl>
-                <Textarea placeholder="Detalles adicionales sobre la tarea..." {...field} value={field.value ?? ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <FormField
-              control={form.control}
-              name="quantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Cantidad</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="unitOfMeasure"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Unidad Medida</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej. m², und, kg" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             <FormField
-                control={form.control}
-                name="unitPrice"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Precio Unitario</FormLabel>
-                    <FormControl>
-                        <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-             />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <FormField
-                control={form.control}
-                name="laborCost"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Costo Mano Obra (Opc)</FormLabel>
-                    <FormControl>
-                         {/* Handle empty string to pass null */}
-                         <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''}/>
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-            />
-            <FormField
-                control={form.control}
-                name="profitMargin"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>% Utilidad (Opc)</FormLabel>
-                    <FormControl>
-                         {/* Handle empty string to pass null */}
-                         <Input type="number" step="0.1" placeholder="Ej. 10" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''}/>
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-            />
-             <FormField
-                control={form.control}
-                name="estimatedDuration"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Duración Estimada (días)</FormLabel>
-                    <FormControl>
-                         <Input type="number" placeholder="Ej. 5" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''}/>
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-            />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Estado</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar estado" />
-                        </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                        <SelectItem value="Pendiente">Pendiente</SelectItem>
-                        <SelectItem value="En Progreso">En Progreso</SelectItem>
-                        <SelectItem value="Realizado">Realizado</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <FormMessage />
-                    </FormItem>
-                )}
-            />
-              <FormField
-                control={form.control}
-                name="startDate"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col pt-2"> {/* Add pt-2 for better alignment */}
-                    <FormLabel>Fecha de Inicio (Opc)</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal", // Ensure full width
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, "PPP", { locale: es }) // Use Spanish locale
-                            ) : (
-                              <span>Seleccionar fecha</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value ?? undefined} // Pass undefined if null
-                          onSelect={(date) => field.onChange(date)} // Update state on select
-                          disabled={(date) =>
-                            // Optional: Disable past dates if needed
-                            // date < new Date() || date < new Date("1900-01-01")
-                            false
-                          }
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="endDate"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col pt-2"> {/* Add pt-2 for better alignment */}
-                    <FormLabel>Fecha de Fin (Opc)</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal", // Ensure full width
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, "PPP", { locale: es }) // Use Spanish locale
-                            ) : (
-                              <span>Seleccionar fecha</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value ?? undefined} // Pass undefined if null
-                          onSelect={field.onChange} // Update state on select
-                          disabled={(date) =>
-                            // Disable dates before the start date if a start date is selected
-                            (form.getValues("startDate") && date < form.getValues("startDate")!) || false
-                          }
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-        </div>
-
-        {/* Execution Percentage Slider */}
-        <FormField
+       {/* Wrap form content in ScrollArea */}
+      <ScrollArea className="flex-grow overflow-y-auto pr-6"> {/* Added pr-6 for scrollbar spacing */}
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <FormField
             control={form.control}
-            name="executionPercentage"
-            render={({ field: { value, onChange } }) => ( // Destructure value and onChange
+            name="title"
+            render={({ field }) => (
               <FormItem>
-                <FormLabel>Porcentaje de Ejecución ({value ?? 0}%)</FormLabel>
-                 <FormControl>
-                  <Slider
-                    // Use value directly from field, default to 0 if null/undefined
-                    value={[value ?? 0]}
-                    // Update form field value on change
-                    onValueChange={(vals) => onChange(vals[0])}
-                    max={100}
-                    step={1}
-                    className="py-2" // Add some padding
-                  />
+                <FormLabel>Título de la Tarea</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ej. Instalación de piso" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
-         />
+          />
 
-
-        <div className="flex justify-end space-x-2 pt-4">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? (
-                <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Guardando...
-                </>
-            ) : (
-                existingTask ? 'Actualizar Tarea' : 'Crear Tarea'
+          <FormField
+            control={form.control}
+            name="description"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Descripción (Opcional)</FormLabel>
+                <FormControl>
+                  <Textarea placeholder="Detalles adicionales sobre la tarea..." {...field} value={field.value ?? ''} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
             )}
-          </Button>
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <FormField
+                control={form.control}
+                name="quantity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cantidad</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="unitOfMeasure"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Unidad Medida</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ej. m², und, kg" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+               <FormField
+                  control={form.control}
+                  name="unitPrice"
+                  render={({ field }) => (
+                      <FormItem>
+                      <FormLabel>Precio Unitario</FormLabel>
+                      <FormControl>
+                          <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                      </FormItem>
+                  )}
+               />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <FormField
+                  control={form.control}
+                  name="laborCost"
+                  render={({ field }) => (
+                      <FormItem>
+                      <FormLabel>Costo Mano Obra (Opc)</FormLabel>
+                      <FormControl>
+                           {/* Handle empty string to pass null */}
+                           <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''}/>
+                      </FormControl>
+                      <FormMessage />
+                      </FormItem>
+                  )}
+              />
+              <FormField
+                  control={form.control}
+                  name="profitMargin"
+                  render={({ field }) => (
+                      <FormItem>
+                      <FormLabel>% Utilidad (Opc)</FormLabel>
+                      <FormControl>
+                           {/* Handle empty string to pass null */}
+                           <Input type="number" step="0.1" placeholder="Ej. 10" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''}/>
+                      </FormControl>
+                      <FormMessage />
+                      </FormItem>
+                  )}
+              />
+               <FormField
+                  control={form.control}
+                  name="estimatedDuration"
+                  render={({ field }) => (
+                      <FormItem>
+                      <FormLabel>Duración Estimada (días)</FormLabel>
+                      <FormControl>
+                           <Input type="number" placeholder="Ej. 5" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''}/>
+                      </FormControl>
+                      <FormMessage />
+                      </FormItem>
+                  )}
+              />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                      <FormItem>
+                      <FormLabel>Estado</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                          <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar estado" />
+                          </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                          <SelectItem value="Pendiente">Pendiente</SelectItem>
+                          <SelectItem value="En Progreso">En Progreso</SelectItem>
+                          <SelectItem value="Realizado">Realizado</SelectItem>
+                          </SelectContent>
+                      </Select>
+                      <FormMessage />
+                      </FormItem>
+                  )}
+              />
+                <FormField
+                  control={form.control}
+                  name="startDate"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col pt-2"> {/* Add pt-2 for better alignment */}
+                      <FormLabel>Fecha de Inicio (Opc)</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full pl-3 text-left font-normal", // Ensure full width
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP", { locale: es }) // Use Spanish locale
+                              ) : (
+                                <span>Seleccionar fecha</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value ?? undefined} // Pass undefined if null
+                            onSelect={(date) => field.onChange(date)} // Update state on select
+                            disabled={(date) =>
+                              // Optional: Disable past dates if needed
+                              // date < new Date() || date < new Date("1900-01-01")
+                              false
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="endDate"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col pt-2"> {/* Add pt-2 for better alignment */}
+                      <FormLabel>Fecha de Fin (Opc)</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full pl-3 text-left font-normal", // Ensure full width
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP", { locale: es }) // Use Spanish locale
+                              ) : (
+                                <span>Seleccionar fecha</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value ?? undefined} // Pass undefined if null
+                            onSelect={field.onChange} // Update state on select
+                            disabled={(date) =>
+                              // Disable dates before the start date if a start date is selected
+                              (form.getValues("startDate") && date < form.getValues("startDate")!) || false
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+          </div>
+
+          {/* Execution Percentage Slider */}
+          <FormField
+              control={form.control}
+              name="executionPercentage"
+              render={({ field: { value, onChange } }) => ( // Destructure value and onChange
+                <FormItem>
+                  <FormLabel>Porcentaje de Ejecución ({value ?? 0}%)</FormLabel>
+                   <FormControl>
+                    <Slider
+                      // Use value directly from field, default to 0 if null/undefined
+                      value={[value ?? 0]}
+                      // Update form field value on change
+                      onValueChange={(vals) => onChange(vals[0])}
+                      max={100}
+                      step={1}
+                      className="py-2" // Add some padding
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+           />
+
+
+          {/* Form actions are outside ScrollArea in the DialogFooter */}
+        </form>
+      </ScrollArea>
+
+      {/* Form actions moved outside ScrollArea */}
+       <div className="flex justify-end space-x-2 pt-4 border-t mt-4"> {/* Added border-t and mt-4 */}
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+            Cancelar
+            </Button>
+             {/* Trigger form submission using form ID */}
+            <Button type="submit" form="task-form-id" disabled={isSubmitting}>
+                {isSubmitting ? (
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Guardando...
+                    </>
+                ) : (
+                    existingTask ? 'Actualizar Tarea' : 'Crear Tarea'
+                )}
+            </Button>
         </div>
-      </form>
     </Form>
   );
 };
