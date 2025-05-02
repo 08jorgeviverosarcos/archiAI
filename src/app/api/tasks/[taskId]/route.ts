@@ -1,4 +1,3 @@
-
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -115,7 +114,7 @@ export async function PUT(req: Request, { params }: { params: Params }) {
         if (Object.prototype.hasOwnProperty.call(parsedBody, key)) {
              // Directly use the value from parsedBody, which could be null for optional fields
              // @ts-ignore - Allow dynamic assignment
-            updateData[key] = parsedBody[key as keyof typeof parsedBody];
+            updateData[key as keyof typeof parsedBody] = parsedBody[key as keyof typeof parsedBody];
         }
     }
 
@@ -133,6 +132,7 @@ export async function PUT(req: Request, { params }: { params: Params }) {
       updateData.estimatedCost = calculatedCost;
     }
 
+    // Log the final update data object just before sending to Mongoose
     console.log(`Update data being sent to MongoDB (PUT):`, JSON.stringify(updateData, null, 2));
 
     // Perform the update using $set to update only provided fields

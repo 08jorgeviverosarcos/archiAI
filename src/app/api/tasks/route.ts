@@ -1,4 +1,3 @@
-
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -161,7 +160,8 @@ export async function POST(req: Request) {
       endDate: parsedBody.endDate,
     };
 
-    console.log("Data for new task (POST):", JSON.stringify(newTaskData, null, 2));
+    // Log the final data object just before sending to Mongoose
+    console.log("Data for new task being sent to Mongoose (POST):", JSON.stringify(newTaskData, null, 2));
 
     const newTask = new Task(newTaskData);
     await newTask.save();
@@ -189,3 +189,4 @@ export async function POST(req: Request) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
+
