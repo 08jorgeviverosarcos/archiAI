@@ -17,7 +17,8 @@ import { useToast } from '@/hooks/use-toast';
 interface ProjectDetailsFormProps {
   // Callback function when project and initial plan are successfully created
   onProjectCreated: (projectDetails: ProjectDetails, initialPlan: InitialPlanType[] | null, initialPlanId: string | null) => void;
-  setIsCreatingProject: (isCreating: boolean) => void; // To control form visibility
+  // Function to handle cancellation or going back
+  onCancel: () => void;
 }
 
 
@@ -45,7 +46,7 @@ const formSchema = z.object({
 
 export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
     onProjectCreated,
-    setIsCreatingProject // Receive the setter
+    onCancel // Receive the cancel handler
 }) => {
   const { toast } = useToast();
   const form = useForm<z.infer<typeof formSchema>>({
@@ -96,7 +97,12 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
       console.log("API success response data:", data);
 
       // Prepare data for the callback
-      const newProjectDetails: ProjectDetails = { ...values, _id: data.projectId, initialPlanId: data.initialPlanId };
+      const newProjectDetails: ProjectDetails = {
+           ...values,
+           _id: data.projectId,
+           createdAt: new Date(), // Add creation timestamp locally
+           updatedAt: new Date(), // Add update timestamp locally
+       };
       const generatedPlan: InitialPlanType[] | null = data.initialPlan || null;
       const planId: string | null = data.initialPlanId || null;
 
@@ -109,7 +115,6 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
         description: 'El plan inicial se ha generado y guardado correctamente.',
       });
 
-      // setIsCreatingProject(false); // Parent component will handle this via onProjectCreated
 
     } catch (error: any) {
       console.error('Error al generar el plan inicial:', error);
@@ -296,7 +301,7 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
          </div>
 
         <div className="flex justify-between pt-4">
-             <Button type="button" variant="outline" onClick={() => setIsCreatingProject(false)} disabled={isSubmitting}>
+             <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
                 Cancelar
              </Button>
             <Button type="submit" disabled={isSubmitting}>
@@ -307,5 +312,3 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
     </Form>
   );
 };
-
-    

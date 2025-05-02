@@ -1,18 +1,18 @@
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ProjectDetails, InitialPlan as InitialPlanType } from '@/types'; // Use specific type for plan phases
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, GanttChartSquare, ListTodo, Settings, DollarSign } from 'lucide-react'; // Icons
+import { ArrowLeft, Loader2, GanttChartSquare, ListTodo, Settings, DollarSign, Edit } from 'lucide-react'; // Icons
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { Toaster } from '@/components/ui/toaster';
 
 // Placeholder components - replace with actual implementations
 const GanttChartPlaceholder = () => <div className="p-4 border rounded bg-muted h-64 flex items-center justify-center text-muted-foreground">Diagrama de Gantt (Próximamente)</div>;
-const BudgetSummaryPlaceholder = () => <div className="p-4 border rounded bg-muted flex items-center justify-center text-muted-foreground">Resumen de Presupuesto (Próximamente)</div>;
-const PhaseListPlaceholder = () => <div className="p-4 border rounded bg-muted flex items-center justify-center text-muted-foreground">Lista de Fases (Próximamente)</div>;
+// const BudgetSummaryPlaceholder = () => <div className="p-4 border rounded bg-muted flex items-center justify-center text-muted-foreground">Resumen de Presupuesto (Próximamente)</div>;
+// const PhaseListPlaceholder = () => <div className="p-4 border rounded bg-muted flex items-center justify-center text-muted-foreground">Lista de Fases (Próximamente)</div>;
 
 
 export default function ProjectDashboardPage() {
@@ -80,7 +80,7 @@ export default function ProjectDashboardPage() {
                     // Ensure planData.initialPlan exists and has a phases array
                     if (planData && planData.initialPlan && Array.isArray(planData.initialPlan.phases)) {
                         // Sort phases by order before setting state
-                        const sortedPhases = [...planData.initialPlan.phases].sort((a, b) => Number(a.order) - Number(b.order));
+                        const sortedPhases = [...planData.initialPlan.phases].sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0));
                         setInitialPlanPhases(sortedPhases);
                         setInitialPlanTotalCost(planData.initialPlan.totalEstimatedCost || 0); // Get total cost from plan
                         console.log("Successfully set initial plan state with sorted phases:", sortedPhases);
@@ -108,7 +108,13 @@ export default function ProjectDashboardPage() {
         };
 
         fetchProjectData();
+     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [projectId, router, toast]); // Dependencies
+
+    const handleEditPlan = () => {
+        router.push(`/?edit=${projectId}`); // Navigate to home page with edit query param
+    };
+
 
     if (isLoading) {
         return (
@@ -143,6 +149,14 @@ export default function ProjectDashboardPage() {
                 </Button>
             </div>
             <CardDescription>{project.projectType} - {project.projectLocation || 'Ubicación no especificada'}</CardDescription>
+
+            {/* Edit Plan Button */}
+             <div className="flex justify-end">
+                 <Button variant="secondary" size="sm" onClick={handleEditPlan}>
+                     <Edit className="mr-2 h-4 w-4" /> Editar Planificación Inicial
+                 </Button>
+             </div>
+
 
             {/* Dashboard Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -199,7 +213,7 @@ export default function ProjectDashboardPage() {
                                         className="w-full justify-start"
                                          onClick={() => router.push(`/dashboard/${projectId}/phases/${phase.phaseId}`)} // Navigate to phase detail using phaseId
                                     >
-                                        {phase.phaseName} ({phase.estimatedDuration} días - {phase.estimatedCost.toLocaleString()} {project.currency})
+                                        {phase.phaseName} ({phase.estimatedDuration} días - {(phase.estimatedCost ?? 0).toLocaleString()} {project.currency})
                                         {/* Add status indicator later */}
                                     </Button>
                                 ))}
@@ -226,6 +240,7 @@ export default function ProjectDashboardPage() {
                  */}
 
             </div>
+             <Toaster />
         </div>
     );
 }

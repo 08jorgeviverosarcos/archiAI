@@ -18,8 +18,8 @@ interface PlanDisplayProps {
   initialPlan: InitialPlan[] | null;
   initialPlanId: string | null; // Receive the ID of the InitialPlan document
   projectId: string | null; // Project ID might still be useful for context or navigation
-  setIsCreatingProject?: (isCreating: boolean) => void; // Optional: To go back to project selection/creation
-  setSelectedProject?: (project: ProjectDetails | null) => void; // To go back to project selection
+  // Function to handle going back to project selection/list
+  onGoBack: () => void;
 }
 
 const ItemTypes = {
@@ -63,7 +63,7 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
     collect(monitor) {
         return {
             handlerId: monitor.getHandlerId(),
-        }
+        };
     },
     hover(item: DragItem, monitor: DropTargetMonitor) {
       if (!ref.current) {
@@ -107,7 +107,7 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
 
   const [{ isDragging }, drag, preview] = useDrag({
     type: ItemTypes.PHASE,
-    item: () => { return { id: phaseId, index } }, // Return object with id and index
+    item: () => ({ id: phaseId, index }), // Return object with id and index
     collect: (monitor: any) => ({
       isDragging: monitor.isDragging(),
     }),
@@ -115,17 +115,24 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
 
   preview(drop(ref)); // Combine drop and preview refs
 
+  // Attach data-handler-id attribute
+  React.useEffect(() => {
+    if (ref.current && handlerId) {
+      ref.current.setAttribute('data-handler-id', handlerId.toString());
+    }
+  }, [handlerId]);
+
+
   return (
     <TableRow
       ref={ref}
       key={phaseId} // Use unique phaseId
       style={{ opacity: isDragging ? 0.5 : 1 }}
-      data-handler-id={handlerId} // Keep handlerId for react-dnd
     >
-      <TableCell className="w-10 cursor-move" ref={drag}> {/* Apply drag handle ref here */}
+      <TableCell className="w-10 cursor-move p-2" ref={drag}> {/* Apply drag handle ref here */}
         <GripVertical className="h-5 w-5 text-muted-foreground" />
       </TableCell>
-      <TableCell className="min-w-[250px]"> {/* Ensure enough width */}
+      <TableCell className="min-w-[250px] p-2"> {/* Ensure enough width */}
         <Input
           type="text"
           value={phase.phaseName}
@@ -133,7 +140,7 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
           className="w-full"
         />
       </TableCell>
-      <TableCell className="w-[180px]"> {/* Adjusted width */}
+      <TableCell className="w-[180px] p-2"> {/* Adjusted width */}
         <Input
           type="number"
            value={phase.estimatedDuration === 0 ? '' : phase.estimatedDuration} // Handle 0 for placeholder
@@ -142,7 +149,7 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
            min="0" // Prevent negative numbers
         />
       </TableCell>
-      <TableCell className="w-[200px]"> {/* Adjusted width */}
+      <TableCell className="w-[200px] p-2"> {/* Adjusted width */}
         <Input
           type="number"
            value={phase.estimatedCost === 0 ? '' : phase.estimatedCost} // Handle 0 for placeholder
@@ -151,7 +158,7 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
            min="0" // Prevent negative numbers
         />
       </TableCell>
-      <TableCell className="w-[60px] text-center"> {/* Adjusted width */}
+      <TableCell className="w-[60px] text-center p-2"> {/* Adjusted width */}
         <Button variant="ghost" size="icon" onClick={() => handleDeletePhase(index)}>
           <Trash2 className="h-4 w-4 text-destructive" />
         </Button>
@@ -166,13 +173,12 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
   initialPlan,
   initialPlanId, // Use this ID for saving
   projectId,
-  setIsCreatingProject,
-  setSelectedProject
+  onGoBack, // Use the back handler from props
 }) => {
     // State to hold the plan being edited
     const [editablePlan, setEditablePlan] = useState<InitialPlan[] | null>(null);
     // State to hold the original fetched plan for comparison or reset (optional)
-    const [originalPlan, setOriginalPlan] = useState<InitialPlan[] | null>(null);
+    // const [originalPlan, setOriginalPlan] = useState<InitialPlan[] | null>(null); // Keep if reset functionality is needed
     const [totalCost, setTotalCost] = useState(0);
     const [isSaving, setIsSaving] = useState(false);
     const router = useRouter();
@@ -187,11 +193,11 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
             // Sort the incoming plan by 'order' before setting state
             const sortedPlan = [...planArray].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
             setEditablePlan(sortedPlan);
-            setOriginalPlan(sortedPlan); // Store the original sorted plan
+            // setOriginalPlan(sortedPlan); // Store the original sorted plan if reset is needed
             console.log("PlanDisplay: Editable plan state initialized/updated with sorted data:", sortedPlan);
         } else {
             setEditablePlan(null); // Reset if initialPlan is null
-            setOriginalPlan(null);
+            // setOriginalPlan(null);
             console.log("PlanDisplay: Initial plan prop is null, resetting state.");
         }
     }, [initialPlan]); // Dependency on initialPlan
@@ -325,11 +331,10 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
       // Navigate to the project dashboard after saving
        if (projectId) {
             console.log("PlanDisplay: Navigating to dashboard for project ID:", projectId);
-           router.push(`/dashboard/${projectId}`);
+           router.push(`/dashboard/${projectId}`); // Navigate to dashboard
        } else {
-            console.warn("PlanDisplay: Project ID is missing, navigating back.");
-            // If project ID is somehow missing, attempt to go back or to home
-            handleGoBack();
+            console.warn("PlanDisplay: Project ID is missing, navigating back using onGoBack.");
+            onGoBack(); // Use the provided back function
        }
 
     } catch (error: any) {
@@ -343,18 +348,6 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
         setIsSaving(false);
     }
   };
-
-   // Function to handle going back
-   const handleGoBack = () => {
-        console.log("PlanDisplay: Go back triggered.");
-     if (setSelectedProject) {
-         setSelectedProject(null); // Go back to project selection
-     } else if (setIsCreatingProject) {
-         setIsCreatingProject(true); // Go back to creation form (if applicable)
-     } else {
-         router.push('/'); // Fallback to home
-     }
-   };
 
 
   if (!projectDetails) {
@@ -379,11 +372,11 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
                   <TableCaption className="mt-4">Arrastra las filas <GripVertical className="inline h-4 w-4 mx-1 align-middle" /> para reordenar las fases.</TableCaption>
                   <TableHeader>
                     <TableRow>
-                       <TableHead className="w-10"></TableHead>{/* Handle column */}
-                      <TableHead className="min-w-[250px]">Fase</TableHead>
-                      <TableHead className="w-[180px]">Duración Estimada (días)</TableHead>
-                      <TableHead className="w-[200px]">Costo Estimado ({projectDetails?.currency ?? '---'})</TableHead>
-                      <TableHead className="w-[60px] text-center">Acciones</TableHead>
+                       <TableHead className="w-10 p-2"></TableHead>{/* Handle column */}
+                      <TableHead className="min-w-[250px] p-2">Fase</TableHead>
+                      <TableHead className="w-[180px] p-2">Duración Estimada (días)</TableHead>
+                      <TableHead className="w-[200px] p-2">Costo Estimado ({projectDetails?.currency ?? '---'})</TableHead>
+                      <TableHead className="w-[60px] text-center p-2">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -437,7 +430,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
 
            {/* Action Buttons */}
           <div className="flex justify-between pt-4">
-            <Button variant="outline" onClick={handleGoBack} disabled={isSaving}>
+            <Button variant="outline" onClick={onGoBack} disabled={isSaving}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Volver
             </Button>
