@@ -40,9 +40,9 @@ const taskFormSchema = z.object({
   status: z.enum(['Pendiente', 'En Progreso', 'Realizado']).default('Pendiente'),
   profitMargin: z.number().optional().nullable(), // Optional and nullable
   laborCost: z.number().min(0).optional().nullable(), // Optional and nullable
-  executionPercentage: z.number().min(0).max(100).optional().nullable(), // Optional (0-100)
-  startDate: z.date().optional().nullable(), // Optional date
-  endDate: z.date().optional().nullable(), // Optional date
+  executionPercentage: z.number().min(0).max(100).optional().nullable(), // Optional (0-100), allow null
+  startDate: z.date().optional().nullable(), // Optional date, allow null
+  endDate: z.date().optional().nullable(), // Optional date, allow null
   // projectId and phaseUUID will be passed as props, not part of the form fields
   // estimatedCost is calculated
 }).refine(data => {
@@ -121,12 +121,13 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       const method = existingTask?._id ? 'PUT' : 'POST';
 
       // Prepare payload, ensuring dates are handled correctly (pass as ISO strings or Date objects depending on API)
+      // Make sure null values are passed correctly for optional fields
       const payload = {
         ...data,
-        profitMargin: data.profitMargin === undefined ? null : data.profitMargin,
-        laborCost: data.laborCost === undefined ? null : data.laborCost,
-        estimatedDuration: data.estimatedDuration === undefined ? null : data.estimatedDuration,
-        executionPercentage: data.executionPercentage === undefined ? null : data.executionPercentage,
+        profitMargin: data.profitMargin === undefined || data.profitMargin === null ? null : data.profitMargin,
+        laborCost: data.laborCost === undefined || data.laborCost === null ? null : data.laborCost,
+        estimatedDuration: data.estimatedDuration === undefined || data.estimatedDuration === null ? null : data.estimatedDuration,
+        executionPercentage: data.executionPercentage === undefined || data.executionPercentage === null ? null : data.executionPercentage,
         startDate: data.startDate || null, // Pass null if undefined/null
         endDate: data.endDate || null, // Pass null if undefined/null
         projectId: projectId, // Add projectId
@@ -280,7 +281,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                     <FormItem>
                     <FormLabel>Duración Estimada (días)</FormLabel>
                     <FormControl>
-                         <Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''}/>
+                         <Input type="number" placeholder="Ej. 5" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''}/>
                     </FormControl>
                     <FormMessage />
                     </FormItem>
@@ -315,15 +316,15 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 control={form.control}
                 name="startDate"
                 render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Fecha de Inicio</FormLabel>
+                  <FormItem className="flex flex-col pt-2"> {/* Add pt-2 for better alignment */}
+                    <FormLabel>Fecha de Inicio (Opc)</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
                             variant={"outline"}
                             className={cn(
-                              "pl-3 text-left font-normal",
+                              "w-full pl-3 text-left font-normal", // Ensure full width
                               !field.value && "text-muted-foreground"
                             )}
                           >
@@ -340,7 +341,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                         <Calendar
                           mode="single"
                           selected={field.value ?? undefined} // Pass undefined if null
-                          onSelect={(date) => field.onChange(date)}
+                          onSelect={(date) => field.onChange(date)} // Update state on select
                           disabled={(date) =>
                             // Optional: Disable past dates if needed
                             // date < new Date() || date < new Date("1900-01-01")
@@ -358,15 +359,15 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 control={form.control}
                 name="endDate"
                 render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Fecha de Fin</FormLabel>
+                  <FormItem className="flex flex-col pt-2"> {/* Add pt-2 for better alignment */}
+                    <FormLabel>Fecha de Fin (Opc)</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
                             variant={"outline"}
                             className={cn(
-                              "pl-3 text-left font-normal",
+                              "w-full pl-3 text-left font-normal", // Ensure full width
                               !field.value && "text-muted-foreground"
                             )}
                           >
@@ -383,7 +384,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                         <Calendar
                           mode="single"
                           selected={field.value ?? undefined} // Pass undefined if null
-                          onSelect={field.onChange}
+                          onSelect={field.onChange} // Update state on select
                           disabled={(date) =>
                             // Disable dates before the start date if a start date is selected
                             (form.getValues("startDate") && date < form.getValues("startDate")!) || false
