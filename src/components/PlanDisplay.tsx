@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ArrowRight, ArrowLeft, AlertCircle, Trash2, Plus, GripVertical } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-// Basic drag-and-drop setup (consider a library like react-beautiful-dnd for more complex needs)
+// Basic drag-and-drop setup
 import { DndProvider, useDrag, useDrop, DropTargetMonitor } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 
@@ -58,7 +58,7 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
   const ref = useRef<HTMLTableRowElement>(null);
   const phaseId = phase.phaseId || `phase-${index}`; // Ensure a unique ID
 
-  const [, drop] = useDrop<DragItem, void, { handlerId: string | symbol | null }>({
+  const [{ handlerId }, drop] = useDrop<DragItem, void, { handlerId: string | symbol | null }>({
     accept: ItemTypes.PHASE,
     collect(monitor) {
         return {
@@ -120,7 +120,7 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
       ref={ref}
       key={phaseId} // Use unique phaseId
       style={{ opacity: isDragging ? 0.5 : 1 }}
-      // Remove the invalid data-handler-id prop
+      data-handler-id={handlerId} // Keep handlerId for react-dnd
     >
       <TableCell className="w-10 cursor-move" ref={drag}> {/* Apply drag handle ref here */}
         <GripVertical className="h-5 w-5 text-muted-foreground" />
@@ -182,8 +182,10 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
     useEffect(() => {
         console.log("PlanDisplay: Initial plan prop received:", initialPlan);
         if (initialPlan) {
+            // Ensure phases is an array before sorting
+            const planArray = Array.isArray(initialPlan) ? initialPlan : [];
             // Sort the incoming plan by 'order' before setting state
-            const sortedPlan = [...initialPlan].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+            const sortedPlan = [...planArray].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
             setEditablePlan(sortedPlan);
             setOriginalPlan(sortedPlan); // Store the original sorted plan
             console.log("PlanDisplay: Editable plan state initialized/updated with sorted data:", sortedPlan);
@@ -377,7 +379,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
                   <TableCaption className="mt-4">Arrastra las filas <GripVertical className="inline h-4 w-4 mx-1 align-middle" /> para reordenar las fases.</TableCaption>
                   <TableHeader>
                     <TableRow>
-                       <TableHead className="w-10"></TableHead> {/* Handle column */}
+                       <TableHead className="w-10"></TableHead>{/* Handle column */}
                       <TableHead className="min-w-[250px]">Fase</TableHead>
                       <TableHead className="w-[180px]">Duración Estimada (días)</TableHead>
                       <TableHead className="w-[200px]">Costo Estimado ({projectDetails?.currency ?? '---'})</TableHead>
