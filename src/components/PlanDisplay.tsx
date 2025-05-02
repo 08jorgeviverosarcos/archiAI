@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ProjectDetails, InitialPlan } from '@/types';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { ArrowRight, ArrowLeft, AlertCircle, Trash2, Plus, GripVertical } from '
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 // Basic drag-and-drop setup (consider a library like react-beautiful-dnd for more complex needs)
-import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { DndProvider, useDrag, useDrop, DropTargetMonitor } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 
 interface PlanDisplayProps {
@@ -37,6 +37,14 @@ interface DraggableRowProps {
   currency: string;
 }
 
+// Interface for the drag item
+interface DragItem {
+  index: number;
+  id: string; // Use phaseId as the identifier
+  type: string;
+}
+
+
 const DraggableTableRow: React.FC<DraggableRowProps> = ({
   phase,
   index,
@@ -47,28 +55,60 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
   handleDeletePhase,
   currency,
 }) => {
-  const ref = React.useRef<HTMLTableRowElement>(null);
+  const ref = useRef<HTMLTableRowElement>(null);
+  const phaseId = phase.phaseId || `phase-${index}`; // Ensure a unique ID
 
-  const [, drop] = useDrop({
+  const [, drop] = useDrop<DragItem, void, { handlerId: string | symbol | null }>({
     accept: ItemTypes.PHASE,
-    hover(item: { index: number }, monitor) {
+    collect(monitor) {
+        return {
+            handlerId: monitor.getHandlerId(),
+        }
+    },
+    hover(item: DragItem, monitor: DropTargetMonitor) {
       if (!ref.current) {
         return;
       }
       const dragIndex = item.index;
       const hoverIndex = index;
+      // Don't replace items with themselves
       if (dragIndex === hoverIndex) {
         return;
       }
+       // Determine rectangle on screen
+       const hoverBoundingRect = ref.current?.getBoundingClientRect();
+       // Get vertical middle
+       const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
+       // Determine mouse position
+       const clientOffset = monitor.getClientOffset();
+       // Get pixels to the top
+       const hoverClientY = clientOffset!.y - hoverBoundingRect.top;
+       // Only perform the move when the mouse has crossed half of the items height
+       // When dragging downwards, only move when the cursor is below 50%
+       // When dragging upwards, only move when the cursor is above 50%
+       // Dragging downwards
+       if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY) {
+           return;
+       }
+       // Dragging upwards
+       if (dragIndex > hoverIndex && hoverClientY > hoverMiddleY) {
+            return;
+       }
+
+      // Time to actually perform the action
       moveRow(dragIndex, hoverIndex);
-      item.index = hoverIndex; // Update item index as it moves
+      // Note: we're mutating the monitor item here!
+      // Generally it's better to avoid mutations,
+      // but it's good here for the sake of performance
+      // to avoid expensive index searches.
+      item.index = hoverIndex;
     },
   });
 
   const [{ isDragging }, drag, preview] = useDrag({
     type: ItemTypes.PHASE,
-    item: { index },
-    collect: (monitor) => ({
+    item: () => { return { id: phaseId, index } }, // Return object with id and index
+    collect: (monitor: any) => ({
       isDragging: monitor.isDragging(),
     }),
   });
@@ -78,14 +118,14 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
   return (
     <TableRow
       ref={ref}
-      key={phase.phaseId || index} // Use phaseId if available, fallback to index
+      key={phaseId} // Use unique phaseId
       style={{ opacity: isDragging ? 0.5 : 1 }}
-      data-handler-id={drop} // Use the drop ref directly if preview is separate
+      // Remove the invalid data-handler-id prop
     >
       <TableCell className="w-10 cursor-move" ref={drag}> {/* Apply drag handle ref here */}
         <GripVertical className="h-5 w-5 text-muted-foreground" />
       </TableCell>
-      <TableCell className="min-w-[200px]"> {/* Ensure enough width */}
+      <TableCell className="min-w-[250px]"> {/* Ensure enough width */}
         <Input
           type="text"
           value={phase.phaseName}
@@ -96,17 +136,19 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
       <TableCell className="w-[180px]"> {/* Adjusted width */}
         <Input
           type="number"
-           value={phase.estimatedDuration === 0 ? '' : phase.estimatedDuration}
+           value={phase.estimatedDuration === 0 ? '' : phase.estimatedDuration} // Handle 0 for placeholder
           onChange={(e) => handleDurationChange(index, Number(e.target.value))}
           className="w-full"
+           min="0" // Prevent negative numbers
         />
       </TableCell>
       <TableCell className="w-[200px]"> {/* Adjusted width */}
         <Input
           type="number"
-           value={phase.estimatedCost === 0 ? '' : phase.estimatedCost}
+           value={phase.estimatedCost === 0 ? '' : phase.estimatedCost} // Handle 0 for placeholder
           onChange={(e) => handleCostChange(index, Number(e.target.value))}
           className="w-full"
+           min="0" // Prevent negative numbers
         />
       </TableCell>
       <TableCell className="w-[60px] text-center"> {/* Adjusted width */}
@@ -127,29 +169,42 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
   setIsCreatingProject,
   setSelectedProject
 }) => {
-  // Initialize with sorted plan based on 'order' if available, else use initialPlan directly
-  const [editablePlan, setEditablePlan] = useState<InitialPlan[] | null>(
-      initialPlan ? [...initialPlan].sort((a, b) => a.order - b.order) : null
-    );
-  const [totalCost, setTotalCost] = useState(0);
-  const [isSaving, setIsSaving] = useState(false);
-  const router = useRouter();
-  const { toast } = useToast();
+    // State to hold the plan being edited
+    const [editablePlan, setEditablePlan] = useState<InitialPlan[] | null>(null);
+    // State to hold the original fetched plan for comparison or reset (optional)
+    const [originalPlan, setOriginalPlan] = useState<InitialPlan[] | null>(null);
+    const [totalCost, setTotalCost] = useState(0);
+    const [isSaving, setIsSaving] = useState(false);
+    const router = useRouter();
+    const { toast } = useToast();
+
+    // Effect to initialize or update the editable plan when initialPlan prop changes
+    useEffect(() => {
+        console.log("PlanDisplay: Initial plan prop received:", initialPlan);
+        if (initialPlan) {
+            // Sort the incoming plan by 'order' before setting state
+            const sortedPlan = [...initialPlan].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+            setEditablePlan(sortedPlan);
+            setOriginalPlan(sortedPlan); // Store the original sorted plan
+            console.log("PlanDisplay: Editable plan state initialized/updated with sorted data:", sortedPlan);
+        } else {
+            setEditablePlan(null); // Reset if initialPlan is null
+            setOriginalPlan(null);
+            console.log("PlanDisplay: Initial plan prop is null, resetting state.");
+        }
+    }, [initialPlan]); // Dependency on initialPlan
 
 
-  useEffect(() => {
-    // Recalculate total cost whenever the editable plan changes
-    if (editablePlan) {
-      const calculatedTotalCost = editablePlan.reduce((sum, phase) => sum + (phase.estimatedCost || 0), 0);
-      setTotalCost(calculatedTotalCost);
-    }
-  }, [editablePlan]);
-
-    // Update editablePlan if initialPlan prop changes (e.g., fetched after mount)
-   useEffect(() => {
-     console.log("Initial plan prop changed:", initialPlan);
-     setEditablePlan(initialPlan ? [...initialPlan].sort((a, b) => a.order - b.order) : null);
-   }, [initialPlan]);
+    // Effect to recalculate total cost whenever the editable plan changes
+    useEffect(() => {
+        if (editablePlan) {
+            const calculatedTotalCost = editablePlan.reduce((sum, phase) => sum + (phase.estimatedCost || 0), 0);
+            setTotalCost(calculatedTotalCost);
+            console.log("PlanDisplay: Recalculated total cost:", calculatedTotalCost);
+        } else {
+            setTotalCost(0);
+        }
+    }, [editablePlan]);
 
 
   const handleCostChange = (index: number, newCost: number) => {
@@ -181,55 +236,40 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
 
 
   const handleAddPhase = () => {
-    if (editablePlan) {
-      const newPhase: InitialPlan = {
-        phaseId: crypto.randomUUID(),
-        phaseName: 'Nueva Fase',
-        estimatedDuration: 0,
-        estimatedCost: 0,
-        order: editablePlan.length + 1, // Set order based on new length
-      };
-      setEditablePlan([...editablePlan, newPhase]);
-    } else {
-        // Initialize plan if it was null
-         const newPhase: InitialPlan = {
-           phaseId: crypto.randomUUID(),
-           phaseName: 'Nueva Fase',
-           estimatedDuration: 0,
-           estimatedCost: 0,
-           order: 1,
-         };
-        setEditablePlan([newPhase]);
-    }
-  };
+        const newOrder = editablePlan ? editablePlan.length + 1 : 1;
+        const newPhase: InitialPlan = {
+            phaseId: crypto.randomUUID(), // Generate unique ID
+            phaseName: 'Nueva Fase',
+            estimatedDuration: 0,
+            estimatedCost: 0,
+            order: newOrder, // Assign the next order number
+        };
+        setEditablePlan(prevPlan => (prevPlan ? [...prevPlan, newPhase] : [newPhase]));
+        console.log("PlanDisplay: Added new phase:", newPhase);
+    };
 
   const handleDeletePhase = (index: number) => {
     if (editablePlan) {
         // Create a new array excluding the deleted phase and re-order
-      const updatedPlan = editablePlan
+        const updatedPlan = editablePlan
         .filter((_, i) => i !== index)
-        .map((phase, i) => ({ ...phase, order: i + 1 })); // Re-assign order
-      setEditablePlan(updatedPlan);
+        .map((phase, i) => ({ ...phase, order: i + 1 })); // Re-assign order starting from 1
+        setEditablePlan(updatedPlan);
+        console.log("PlanDisplay: Deleted phase at index", index, "New plan:", updatedPlan);
     }
   };
 
    // Function to handle moving rows for drag-and-drop
-   const moveRow = (dragIndex: number, hoverIndex: number) => {
-     if (editablePlan) {
-       const draggedRow = editablePlan[dragIndex];
-       const updatedPlan = [...editablePlan];
-       updatedPlan.splice(dragIndex, 1); // Remove dragged item
-       updatedPlan.splice(hoverIndex, 0, draggedRow); // Insert at hover position
-
-       // Update the order property based on the new position
-       const finalPlan = updatedPlan.map((phase, index) => ({
-           ...phase,
-           order: index + 1,
-       }));
-
-       setEditablePlan(finalPlan);
-     }
-   };
+   const moveRow = useCallback((dragIndex: number, hoverIndex: number) => {
+         setEditablePlan((prevPlan) => {
+            if (!prevPlan) return null;
+            const updatedPlan = [...prevPlan];
+            const [draggedItem] = updatedPlan.splice(dragIndex, 1);
+            updatedPlan.splice(hoverIndex, 0, draggedItem);
+             // Re-assign order based on new array index
+            return updatedPlan.map((phase, index) => ({ ...phase, order: index + 1 }));
+         });
+     }, []); // No dependencies needed as setEditablePlan handles state update
 
 
   const handleSave = async () => {
@@ -244,6 +284,14 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
       return;
     }
 
+    // Ensure order is correctly set before saving
+     const planToSave = editablePlan.map((phase, index) => ({
+         ...phase,
+         order: index + 1, // Explicitly set order based on final position
+     }));
+
+    console.log("PlanDisplay: Saving plan with ID:", initialPlanId, "Data:", planToSave);
+
     setIsSaving(true);
     try {
       const response = await fetch('/api/generate-plan', {
@@ -251,30 +299,39 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-         // Send initialPlanId and the updated phases array
-        body: JSON.stringify({ initialPlanId: initialPlanId, initialPlan: editablePlan }),
+         // Send initialPlanId and the updated phases array (with correct order)
+        body: JSON.stringify({ initialPlanId: initialPlanId, initialPlan: planToSave }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData = { message: `Server error: ${response.statusText}` };
+        try {
+            errorData = await response.json();
+        } catch (e) {
+            console.error("Failed to parse error response as JSON");
+        }
+        console.error('PlanDisplay: Error saving plan - Response status:', response.status, 'Error data:', errorData);
         throw new Error(errorData.message || 'Fallo al actualizar el plan inicial');
       }
 
-      console.log('Plan saved successfully');
+      const result = await response.json();
+      console.log('PlanDisplay: Plan saved successfully', result);
       toast({
         title: 'Plan Guardado',
         description: 'La planificación inicial se ha actualizado correctamente.',
       });
       // Navigate to the project dashboard after saving
        if (projectId) {
+            console.log("PlanDisplay: Navigating to dashboard for project ID:", projectId);
            router.push(`/dashboard/${projectId}`);
        } else {
+            console.warn("PlanDisplay: Project ID is missing, navigating back.");
             // If project ID is somehow missing, attempt to go back or to home
             handleGoBack();
        }
 
     } catch (error: any) {
-      console.error('Error al guardar el plan:', error);
+      console.error('PlanDisplay: Error caught during save:', error);
       toast({
         variant: 'destructive',
         title: 'Error al guardar',
@@ -287,6 +344,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
 
    // Function to handle going back
    const handleGoBack = () => {
+        console.log("PlanDisplay: Go back triggered.");
      if (setSelectedProject) {
          setSelectedProject(null); // Go back to project selection
      } else if (setIsCreatingProject) {
@@ -298,35 +356,39 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
 
 
   if (!projectDetails) {
-    return <div>Cargando detalles del proyecto...</div>;
+    // Should ideally not happen if parent component logic is correct, but good fallback
+    return <div className="text-center p-8">Cargando detalles del proyecto...</div>;
   }
 
-  const budgetExceeded = totalCost > (projectDetails?.totalBudget ?? 0);
+  // Calculate budget comparison safely
+  const budgetExceeded = projectDetails?.totalBudget !== null && typeof projectDetails?.totalBudget === 'number' && totalCost > projectDetails.totalBudget;
 
 
   return (
      <DndProvider backend={HTML5Backend}>
-        <div>
-          <h2 className="text-xl font-bold mb-4">Revisar Planificación Inicial - {projectDetails?.projectName ?? 'Proyecto Sin Nombre'}</h2>
+        <div className="space-y-6">
+          <h2 className="text-xl font-bold">Revisar Planificación Inicial - {projectDetails?.projectName ?? 'Proyecto Sin Nombre'}</h2>
 
-          <div className="mb-6">
+          {/* Planificación Table Section */}
+          <div>
             <h3 className="text-lg font-semibold mb-2 border-b pb-1">Planificación Generada</h3>
              {editablePlan && editablePlan.length > 0 ? (
                 <Table>
-                  <TableCaption>Arrastra las filas para reordenar las fases.</TableCaption>
+                  <TableCaption className="mt-4">Arrastra las filas <GripVertical className="inline h-4 w-4 mx-1 align-middle" /> para reordenar las fases.</TableCaption>
                   <TableHeader>
                     <TableRow>
                        <TableHead className="w-10"></TableHead> {/* Handle column */}
-                      <TableHead className="min-w-[200px]">Fase</TableHead>
+                      <TableHead className="min-w-[250px]">Fase</TableHead>
                       <TableHead className="w-[180px]">Duración Estimada (días)</TableHead>
                       <TableHead className="w-[200px]">Costo Estimado ({projectDetails?.currency ?? '---'})</TableHead>
                       <TableHead className="w-[60px] text-center">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
+                     {/* Render rows using the DraggableTableRow component */}
                     {editablePlan.map((phase, index) => (
                       <DraggableTableRow
-                        key={phase.phaseId || index}
+                        key={phase.phaseId || `phase-${index}`} // Ensure key is stable and unique
                         index={index}
                         phase={phase}
                         moveRow={moveRow}
@@ -340,8 +402,9 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
                   </TableBody>
                 </Table>
             ) : (
-                <p className="text-muted-foreground italic">Aún no se han agregado fases a este plan.</p>
+                <p className="text-muted-foreground italic p-4 text-center">Aún no se han agregado fases a este plan.</p>
             )}
+             {/* Add Phase Button */}
             <Button variant="secondary" onClick={handleAddPhase} className="mt-4">
               <Plus className="mr-2 h-4 w-4" />
               Agregar Fase
@@ -349,16 +412,18 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
           </div>
 
 
-          <div className="mb-6">
+          {/* Budget Summary Section */}
+          <div>
              <h3 className="text-lg font-semibold mb-2 border-b pb-1">Resumen del Presupuesto</h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm p-4 border rounded-md bg-muted/30">
                 <p className="font-medium">Presupuesto Total Ingresado:</p>
-                <p className="text-right">{(projectDetails?.totalBudget ?? 0).toLocaleString()} {projectDetails?.currency ?? '---'}</p>
+                <p className="text-right font-mono">{(projectDetails?.totalBudget ?? 0).toLocaleString()} {projectDetails?.currency ?? '---'}</p>
                 <p className="font-medium">Costo Estimado Planificación:</p>
-                 <p className={`text-right ${budgetExceeded ? 'text-destructive font-semibold' : ''}`}>
+                 <p className={`text-right font-mono ${budgetExceeded ? 'text-destructive font-semibold' : ''}`}>
                     {totalCost.toLocaleString()} {projectDetails?.currency ?? '---'}
                  </p>
             </div>
+             {/* Budget Exceeded Alert */}
              {budgetExceeded && (
                 <Alert variant="destructive" className="mt-4">
                   <AlertCircle className="h-4 w-4" />
@@ -368,12 +433,13 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
               )}
           </div>
 
-          <div className="mt-6 flex justify-between">
-            <Button variant="outline" onClick={handleGoBack}>
+           {/* Action Buttons */}
+          <div className="flex justify-between pt-4">
+            <Button variant="outline" onClick={handleGoBack} disabled={isSaving}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Volver
             </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
+            <Button onClick={handleSave} disabled={isSaving || !editablePlan || editablePlan.length === 0}>
               {isSaving ? 'Guardando...' : 'Guardar y Continuar'}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
