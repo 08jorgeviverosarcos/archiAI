@@ -1,5 +1,3 @@
-
-
 export interface ProjectDetails {
   _id?: string; // Optional: ObjectId from MongoDB
   projectId?: string // Optional: Keep if used elsewhere, but _id is standard
@@ -24,6 +22,7 @@ export interface InitialPlanPhase {
   estimatedDuration: number; // Use consistent name
   estimatedCost: number;
   order: number; // Add order field
+  tasks?: Task[];
 }
 
 // New type for the data structure of the InitialPlan document fetched from API

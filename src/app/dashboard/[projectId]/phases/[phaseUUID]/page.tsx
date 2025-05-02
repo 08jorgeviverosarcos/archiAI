@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -73,26 +72,11 @@ export default function PhaseTasksPage() {
 
             if (foundPhase) {
                 setPhaseDetails(foundPhase);
+                setTasks(foundPhase.tasks || []); // Set tasks from fetched phase data
             } else {
                 // Phase not found within the plan
                 throw new Error(`Fase con UUID ${phaseUUID} no encontrada en la planificación del proyecto ${projectId}`);
             }
-
-            // 2. Fetch tasks for this specific phase UUID and project ID
-            console.log(`Fetching tasks for projectId: ${projectId}, phaseUUID: ${phaseUUID}`);
-            const tasksRes = await fetch(`/api/tasks?projectId=${projectId}&phaseUUID=${phaseUUID}`);
-            console.log(`Tasks fetch status: ${tasksRes.status}`);
-            if (!tasksRes.ok) {
-                 let errorMsg = "Fallo al cargar las tareas para esta fase.";
-                try {
-                    const errorData = await tasksRes.json();
-                    errorMsg = errorData.message || errorMsg;
-                } catch (e) {/* ignore */}
-                throw new Error(errorMsg);
-            }
-            const tasksData = await tasksRes.json();
-            setTasks(tasksData.tasks || []);
-            console.log("Tasks fetched:", tasksData.tasks);
 
         } catch (err: any) {
             console.error("Error loading phase tasks page:", err);
@@ -225,7 +209,7 @@ export default function PhaseTasksPage() {
                  </div>
                  <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
                     <DialogTrigger asChild>
-                         <Button onClick={handleAddTask}>
+                         <Button onClick={handleAddTask} disabled={tasks.length == 0}>
                              <PlusCircle className="mr-2 h-4 w-4" /> Agregar Tarea
                          </Button>
                     </DialogTrigger>
@@ -291,7 +275,10 @@ export default function PhaseTasksPage() {
                             </TableBody>
                         </Table>
                     ) : (
-                        <p className="text-muted-foreground italic text-center py-4">No hay tareas definidas para esta fase aún.</p>
+                        
+                        <Button onClick={handleAddTask}>
+                          <PlusCircle className="mr-2 h-4 w-4" /> Agregar Tarea
+                        </Button>
                     )}
                 </CardContent>
                 {/* Optional Footer */}
@@ -303,5 +290,3 @@ export default function PhaseTasksPage() {
         </div>
     );
 }
-
-    

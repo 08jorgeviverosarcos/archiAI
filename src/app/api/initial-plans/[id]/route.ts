@@ -2,6 +2,7 @@
 
 import { NextResponse } from 'next/server';
 import InitialPlan from '@/models/InitialPlan'; // Import the InitialPlan model
+import Task from '@/models/Task'; // Import the Task model
 import connectDB from '@/lib/db'; // Import db connection utility
 import mongoose from 'mongoose';
 
@@ -44,6 +45,15 @@ export async function GET(req: Request, { params }: { params: Params }) {
         // Ensure order is treated as a number for sorting
         initialPlan.phases.sort((a, b) => Number(a.order) - Number(b.order));
         console.log("Phases sorted by order.");
+
+        // Fetch tasks for each phase and attach them to the phase object
+        for (const phase of initialPlan.phases) {
+            const tasks = await Task.find({
+                projectId: new mongoose.Types.ObjectId(projectId),
+                phaseUUID: phase.phaseId, // Ensure this matches your task model
+            }).lean();
+            phase.tasks = tasks || []; // Add tasks array to the phase object
+        }
      } else {
         console.warn(`Initial Plan for project ${projectId} has no phases or phases is not an array.`);
         // Ensure phases is at least an empty array if null/undefined
