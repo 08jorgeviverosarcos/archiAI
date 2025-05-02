@@ -7,7 +7,7 @@ import connectDB from '@/lib/db'; // Import db connection utility
 import mongoose from 'mongoose';
 import { z } from 'zod';
 
-// Schema for validating POST request body
+// Schema for validating POST request body - updated with new fields
 const taskCreateSchema = z.object({
   projectId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), { message: "Invalid Project ID" }),
   phaseUUID: z.string().uuid({ message: "Invalid Phase UUID" }),
@@ -16,11 +16,23 @@ const taskCreateSchema = z.object({
   quantity: z.number().min(0, { message: "Quantity must be non-negative" }).default(1),
   unitOfMeasure: z.string().min(1, { message: "Unit of measure is required" }),
   unitPrice: z.number().min(0, { message: "Unit price must be non-negative" }).default(0),
+  estimatedDuration: z.number().min(0).optional().nullable(), // Optional duration
   status: z.enum(['Pendiente', 'En Progreso', 'Realizado']).default('Pendiente'),
   profitMargin: z.number().optional().nullable(), // Allow null
   laborCost: z.number().min(0).optional().nullable(), // Allow null
+  executionPercentage: z.number().min(0).max(100).optional().nullable(), // Optional percentage
+  startDate: z.date().optional().nullable(), // Optional date
+  endDate: z.date().optional().nullable(), // Optional date
   // estimatedCost is calculated, not directly taken from input usually
-}).strict(); // Prevent extra fields from being passed
+}).strict().refine(data => { // Add refinement for date validation
+    if (data.startDate && data.endDate) {
+        return data.endDate >= data.startDate;
+    }
+    return true;
+}, {
+    message: "La fecha de finalización debe ser posterior o igual a la fecha de inicio.",
+    path: ["endDate"],
+});
 
 // GET handler to fetch tasks based on projectId and phaseUUID
 export async function GET(req: Request) {
@@ -90,6 +102,10 @@ export async function POST(req: Request) {
     const body = await req.json();
     console.log("Request body:", body);
 
+    // Convert date strings to Date objects before validation if necessary
+    if (body.startDate) body.startDate = new Date(body.startDate);
+    if (body.endDate) body.endDate = new Date(body.endDate);
+
     // Validate request body
     const parsedBody = taskCreateSchema.parse(body);
     console.log("Parsed body:", parsedBody);
@@ -97,7 +113,6 @@ export async function POST(req: Request) {
     // Calculate estimated cost
     // Use || 0 to handle null/undefined laborCost safely
     const calculatedCost = (parsedBody.quantity * parsedBody.unitPrice) + (parsedBody.laborCost || 0);
-    // Profit margin is not typically added to the base cost, but used for pricing/reporting
 
     const newTaskData = {
       ...parsedBody,
@@ -106,6 +121,10 @@ export async function POST(req: Request) {
       // Ensure null is saved if values are null/undefined in parsedBody
       profitMargin: parsedBody.profitMargin === undefined ? null : parsedBody.profitMargin,
       laborCost: parsedBody.laborCost === undefined ? null : parsedBody.laborCost,
+      estimatedDuration: parsedBody.estimatedDuration === undefined ? null : parsedBody.estimatedDuration,
+      executionPercentage: parsedBody.executionPercentage === undefined ? null : parsedBody.executionPercentage,
+      startDate: parsedBody.startDate || null,
+      endDate: parsedBody.endDate || null,
     };
 
     console.log("Data for new task:", newTaskData);

@@ -11,18 +11,31 @@ interface Params {
     taskId: string;
 }
 
-// Schema for validating PUT request body (similar to create, but all fields optional)
+// Schema for validating PUT request body (updated for new fields)
 const taskUpdateSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional().nullable(), // Allow explicitly setting to null
   quantity: z.number().min(0).optional(),
   unitOfMeasure: z.string().min(1).optional(),
   unitPrice: z.number().min(0).optional(),
+  estimatedDuration: z.number().min(0).optional().nullable(), // Optional duration
   status: z.enum(['Pendiente', 'En Progreso', 'Realizado']).optional(),
   profitMargin: z.number().optional().nullable(), // Allow optional and nullable
   laborCost: z.number().min(0).optional().nullable(), // Allow optional and nullable
+  executionPercentage: z.number().min(0).max(100).optional().nullable(), // Optional percentage
+  startDate: z.date().optional().nullable(), // Optional date
+  endDate: z.date().optional().nullable(), // Optional date
   // estimatedCost will be recalculated
-}).strict(); // Prevent extra fields
+}).strict().refine(data => { // Add refinement for date validation
+    if (data.startDate && data.endDate) {
+        return data.endDate >= data.startDate;
+    }
+    return true;
+}, {
+    message: "La fecha de finalización debe ser posterior o igual a la fecha de inicio.",
+    path: ["endDate"],
+});
+
 
 // PUT handler to update a specific task
 export async function PUT(req: Request, { params }: { params: Params }) {
@@ -44,6 +57,11 @@ export async function PUT(req: Request, { params }: { params: Params }) {
     const body = await req.json();
     console.log(`Request body for update:`, body);
 
+    // Convert date strings to Date objects before validation if necessary
+    if (body.startDate) body.startDate = new Date(body.startDate);
+    if (body.endDate) body.endDate = new Date(body.endDate);
+
+
     // Validate request body
     const parsedBody = taskUpdateSchema.parse(body);
     console.log(`Parsed body for update:`, parsedBody);
@@ -64,8 +82,10 @@ export async function PUT(req: Request, { params }: { params: Params }) {
     // Only include fields that are present in the parsedBody
      for (const key in parsedBody) {
         if (Object.prototype.hasOwnProperty.call(parsedBody, key)) {
-            // Explicitly handle null values for optional fields
-             if (key === 'profitMargin' || key === 'laborCost') {
+            // Handle specific types like Date and null values
+            if (key === 'startDate' || key === 'endDate') {
+                 updateData[key as keyof typeof updateData] = parsedBody[key as keyof typeof parsedBody] || null;
+            } else if (key === 'profitMargin' || key === 'laborCost' || key === 'estimatedDuration' || key === 'executionPercentage') {
                 updateData[key as keyof typeof updateData] = parsedBody[key as keyof typeof parsedBody];
              } else if (parsedBody[key as keyof typeof parsedBody] !== undefined) {
                 // @ts-ignore - Allow dynamic assignment
@@ -82,11 +102,6 @@ export async function PUT(req: Request, { params }: { params: Params }) {
     const laborCost = (parsedBody.laborCost !== undefined ? parsedBody.laborCost : existingTask.laborCost) ?? 0;
 
     let calculatedCost = (quantity * unitPrice) + laborCost;
-    // Profit margin is usually for reporting/pricing, not part of base cost
-    // const profitMargin = (parsedBody.profitMargin !== undefined ? parsedBody.profitMargin : existingTask.profitMargin);
-    // if (profitMargin !== null && profitMargin !== undefined) {
-    //   calculatedCost = calculatedCost * (1 + profitMargin / 100);
-    // }
 
     // Only update estimatedCost if relevant fields changed
     if (parsedBody.quantity !== undefined || parsedBody.unitPrice !== undefined || parsedBody.laborCost !== undefined) {

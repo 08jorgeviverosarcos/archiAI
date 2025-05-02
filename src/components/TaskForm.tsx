@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CalendarIcon } from 'lucide-react';
 import {
     Form,
     FormControl,
@@ -22,20 +22,40 @@ import {
     FormLabel,
     FormMessage,
 } from '@/components/ui/form';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale'; // Import Spanish locale for date formatting
+import { Slider } from '@/components/ui/slider'; // Import Slider
 
-// Zod schema for task validation
+// Zod schema for task validation - updated with new fields
 const taskFormSchema = z.object({
   title: z.string().min(1, "El título es requerido"),
   description: z.string().optional(),
   quantity: z.number().min(0, "La cantidad debe ser positiva").default(1),
   unitOfMeasure: z.string().min(1, "La unidad de medida es requerida"),
   unitPrice: z.number().min(0, "El precio unitario debe ser positivo").default(0),
+  estimatedDuration: z.number().min(0, "La duración debe ser positiva").optional().nullable(), // Optional, allow null
   status: z.enum(['Pendiente', 'En Progreso', 'Realizado']).default('Pendiente'),
-  profitMargin: z.number().optional().nullable(), // Make optional and nullable
-  laborCost: z.number().min(0).optional().nullable(), // Make optional and nullable
+  profitMargin: z.number().optional().nullable(), // Optional and nullable
+  laborCost: z.number().min(0).optional().nullable(), // Optional and nullable
+  executionPercentage: z.number().min(0).max(100).optional().nullable(), // Optional (0-100)
+  startDate: z.date().optional().nullable(), // Optional date
+  endDate: z.date().optional().nullable(), // Optional date
   // projectId and phaseUUID will be passed as props, not part of the form fields
   // estimatedCost is calculated
+}).refine(data => {
+    // Optional: Add validation if end date must be after start date
+    if (data.startDate && data.endDate) {
+        return data.endDate >= data.startDate;
+    }
+    return true;
+}, {
+    message: "La fecha de finalización debe ser posterior o igual a la fecha de inicio.",
+    path: ["endDate"], // Point the error to the endDate field
 });
+
 
 type TaskFormData = z.infer<typeof taskFormSchema>;
 
@@ -65,23 +85,32 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       quantity: existingTask?.quantity ?? 1,
       unitOfMeasure: existingTask?.unitOfMeasure ?? '',
       unitPrice: existingTask?.unitPrice ?? 0,
+      estimatedDuration: existingTask?.estimatedDuration ?? null, // Default to null
       status: existingTask?.status ?? 'Pendiente',
-      profitMargin: existingTask?.profitMargin ?? null, // Default to null if not provided
-      laborCost: existingTask?.laborCost ?? null, // Default to null if not provided
+      profitMargin: existingTask?.profitMargin ?? null, // Default to null
+      laborCost: existingTask?.laborCost ?? null, // Default to null
+      executionPercentage: existingTask?.executionPercentage ?? null, // Default to null
+      // Initialize dates correctly, ensuring they are Date objects if present
+      startDate: existingTask?.startDate ? new Date(existingTask.startDate) : null,
+      endDate: existingTask?.endDate ? new Date(existingTask.endDate) : null,
     },
   });
 
    // Reset form if existingTask changes (e.g., switching between edit/add)
    useEffect(() => {
        form.reset({
-           title: existingTask?.title ?? '',
-           description: existingTask?.description ?? '',
-           quantity: existingTask?.quantity ?? 1,
-           unitOfMeasure: existingTask?.unitOfMeasure ?? '',
-           unitPrice: existingTask?.unitPrice ?? 0,
-           status: existingTask?.status ?? 'Pendiente',
-           profitMargin: existingTask?.profitMargin ?? null, // Reset to null
-           laborCost: existingTask?.laborCost ?? null, // Reset to null
+            title: existingTask?.title ?? '',
+            description: existingTask?.description ?? '',
+            quantity: existingTask?.quantity ?? 1,
+            unitOfMeasure: existingTask?.unitOfMeasure ?? '',
+            unitPrice: existingTask?.unitPrice ?? 0,
+            estimatedDuration: existingTask?.estimatedDuration ?? null, // Reset to null
+            status: existingTask?.status ?? 'Pendiente',
+            profitMargin: existingTask?.profitMargin ?? null, // Reset to null
+            laborCost: existingTask?.laborCost ?? null, // Reset to null
+            executionPercentage: existingTask?.executionPercentage ?? null, // Reset to null
+            startDate: existingTask?.startDate ? new Date(existingTask.startDate) : null,
+            endDate: existingTask?.endDate ? new Date(existingTask.endDate) : null,
        });
    }, [existingTask, form]);
 
@@ -91,11 +120,15 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       const url = existingTask?._id ? `/api/tasks/${existingTask._id}` : '/api/tasks';
       const method = existingTask?._id ? 'PUT' : 'POST';
 
+      // Prepare payload, ensuring dates are handled correctly (pass as ISO strings or Date objects depending on API)
       const payload = {
         ...data,
-        // Ensure null is sent if fields are empty/null in the form
         profitMargin: data.profitMargin === undefined ? null : data.profitMargin,
         laborCost: data.laborCost === undefined ? null : data.laborCost,
+        estimatedDuration: data.estimatedDuration === undefined ? null : data.estimatedDuration,
+        executionPercentage: data.executionPercentage === undefined ? null : data.executionPercentage,
+        startDate: data.startDate || null, // Pass null if undefined/null
+        endDate: data.endDate || null, // Pass null if undefined/null
         projectId: projectId, // Add projectId
         phaseUUID: phaseUUID, // Add phaseUUID
       };
@@ -109,7 +142,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       });
 
       if (!response.ok) {
-        let errorMsg = `Failed to ${existingTask ? 'update' : 'create'} task`;
+        let errorMsg = `Fallo al ${existingTask ? 'actualizar' : 'crear'} la tarea`;
         try {
           const errorData = await response.json();
           errorMsg = errorData.message || errorMsg;
@@ -140,7 +173,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           control={form.control}
           name="title"
@@ -242,6 +275,22 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             />
              <FormField
                 control={form.control}
+                name="estimatedDuration"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Duración Estimada (días)</FormLabel>
+                    <FormControl>
+                         <Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''}/>
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+            />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <FormField
+                control={form.control}
                 name="status"
                 render={({ field }) => (
                     <FormItem>
@@ -262,7 +311,115 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                     </FormItem>
                 )}
             />
+              <FormField
+                control={form.control}
+                name="startDate"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Fecha de Inicio</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP", { locale: es }) // Use Spanish locale
+                            ) : (
+                              <span>Seleccionar fecha</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ?? undefined} // Pass undefined if null
+                          onSelect={(date) => field.onChange(date)}
+                          disabled={(date) =>
+                            // Optional: Disable past dates if needed
+                            // date < new Date() || date < new Date("1900-01-01")
+                            false
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="endDate"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Fecha de Fin</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP", { locale: es }) // Use Spanish locale
+                            ) : (
+                              <span>Seleccionar fecha</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ?? undefined} // Pass undefined if null
+                          onSelect={field.onChange}
+                          disabled={(date) =>
+                            // Disable dates before the start date if a start date is selected
+                            (form.getValues("startDate") && date < form.getValues("startDate")!) || false
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
         </div>
+
+        {/* Execution Percentage Slider */}
+        <FormField
+            control={form.control}
+            name="executionPercentage"
+            render={({ field: { value, onChange } }) => ( // Destructure value and onChange
+              <FormItem>
+                <FormLabel>Porcentaje de Ejecución ({value ?? 0}%)</FormLabel>
+                 <FormControl>
+                  <Slider
+                    // Use value directly from field, default to 0 if null/undefined
+                    value={[value ?? 0]}
+                    // Update form field value on change
+                    onValueChange={(vals) => onChange(vals[0])}
+                    max={100}
+                    step={1}
+                    className="py-2" // Add some padding
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+         />
 
 
         <div className="flex justify-end space-x-2 pt-4">

@@ -4,7 +4,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, PlusCircle, Trash2, Edit } from 'lucide-react';
+import { ArrowLeft, Loader2, PlusCircle, Trash2, Edit, Calendar as CalendarIcon } from 'lucide-react'; // Use CalendarIcon alias
 import { useToast } from '@/hooks/use-toast';
 import { InitialPlanPhase, Task } from '@/types'; // Assuming InitialPlan defines the phase structure
 import {
@@ -26,6 +26,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { TaskForm } from '@/components/TaskForm'; // Import the TaskForm component
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress'; // Import Progress component
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale'; // Import Spanish locale for date formatting
 
 
 // Rename phaseId to phaseUUID to match the route parameter name and logic
@@ -56,7 +59,14 @@ export default function PhaseTasksPage() {
             console.log(`Initial plan fetch status: ${planRes.status}`);
             if (!planRes.ok) {
                 if (planRes.status === 404) {
-                    throw new Error("Planificación inicial no encontrada para este proyecto.");
+                    // Try fetching project details to confirm project exists
+                    const projectRes = await fetch(`/api/projects/${projectId}`);
+                    if (projectRes.ok) {
+                        // Project exists but plan doesn't
+                         throw new Error("Planificación inicial no encontrada para este proyecto.");
+                    } else {
+                         throw new Error("Proyecto no encontrado.");
+                    }
                 }
                 let errorMsg = "Fallo al cargar la planificación inicial.";
                 try {
@@ -68,8 +78,14 @@ export default function PhaseTasksPage() {
             const planData = await planRes.json();
             console.log("Fetched initial plan data:", planData);
 
+            // Check if initialPlan exists and has phases
+            if (!planData.initialPlan || !Array.isArray(planData.initialPlan.phases)) {
+                throw new Error("La estructura de la planificación inicial es inválida o no contiene fases.");
+            }
+
+
             // Find the specific phase within the fetched plan using phaseUUID
-            const foundPhase = planData.initialPlan?.phases?.find((p: InitialPlanPhase) => p.phaseId === phaseUUID);
+            const foundPhase = planData.initialPlan.phases.find((p: InitialPlanPhase) => p.phaseId === phaseUUID);
             console.log("Found phase:", foundPhase);
 
             if (foundPhase) {
@@ -98,13 +114,13 @@ export default function PhaseTasksPage() {
 
         } catch (err: any) {
             console.error("Error loading phase tasks page:", err);
-            setError(`No se pudieron cargar los datos de la fase: ${err.message}`);
+            setError(`${err.message}`); // Set more specific error
             setPhaseDetails(null); // Clear phase details on error
             setTasks([]); // Clear tasks on error
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: `No se pudieron cargar los datos de la fase: ${err.message}`,
+                description: `${err.message}`,
             });
         } finally {
             setIsLoading(false);
@@ -231,7 +247,7 @@ export default function PhaseTasksPage() {
                              <PlusCircle className="mr-2 h-4 w-4" /> Agregar Tarea
                          </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[600px]"> {/* Adjust width as needed */}
+                    <DialogContent className="sm:max-w-[750px]"> {/* Increased width */}
                         <DialogHeader>
                             <DialogTitle>{editingTask ? 'Editar Tarea' : 'Agregar Nueva Tarea'}</DialogTitle>
                         </DialogHeader>
@@ -259,6 +275,10 @@ export default function PhaseTasksPage() {
                                 <TableRow>
                                     <TableHead>Título</TableHead>
                                     <TableHead>Estado</TableHead>
+                                    <TableHead className="text-center">Dur. (días)</TableHead>
+                                    <TableHead className="text-center">Progreso</TableHead>
+                                    <TableHead className="text-center">Inicio</TableHead>
+                                    <TableHead className="text-center">Fin</TableHead>
                                     <TableHead className="text-right">Costo Est.</TableHead>
                                     <TableHead className="text-right">Acciones</TableHead>
                                 </TableRow>
@@ -274,8 +294,25 @@ export default function PhaseTasksPage() {
                                                 'outline' // Pendiente
                                             }>{task.status}</Badge>
                                         </TableCell>
+                                        <TableCell className="text-center">{task.estimatedDuration ?? '-'}</TableCell>
+                                         <TableCell className="text-center min-w-[100px]">
+                                            {task.executionPercentage !== null && task.executionPercentage !== undefined ? (
+                                                <div className="flex items-center justify-center gap-2">
+                                                     <Progress value={task.executionPercentage} className="h-2 flex-1" />
+                                                     <span className="text-xs text-muted-foreground">{task.executionPercentage}%</span>
+                                                </div>
+                                            ) : (
+                                                 '-'
+                                            )}
+                                         </TableCell>
+                                         <TableCell className="text-center">
+                                              {task.startDate ? format(new Date(task.startDate), 'dd/MM/yy', { locale: es }) : '-'}
+                                         </TableCell>
+                                          <TableCell className="text-center">
+                                             {task.endDate ? format(new Date(task.endDate), 'dd/MM/yy', { locale: es }) : '-'}
+                                          </TableCell>
                                         <TableCell className="text-right">{task.estimatedCost.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right space-x-2">
+                                        <TableCell className="text-right space-x-1">
                                              <Button variant="ghost" size="icon" onClick={() => handleEditTask(task)}>
                                                  <Edit className="h-4 w-4" />
                                                  <span className="sr-only">Editar</span>

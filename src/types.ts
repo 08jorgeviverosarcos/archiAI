@@ -36,7 +36,7 @@ export interface InitialPlanDocument {
 }
 
 
-// New Task interface
+// Updated Task interface
 export interface Task {
     _id?: string; // MongoDB ObjectId
     projectId: string; // Reference to Project _id (as string or ObjectId depending on backend)
@@ -46,10 +46,14 @@ export interface Task {
     quantity: number;
     unitOfMeasure: string; // e.g., 'm²', 'unitario', 'kg', 'hr'
     unitPrice: number;
+    estimatedDuration?: number | null; // Estimated duration in days, allow null
+    estimatedCost: number; // Calculated: quantity * unitPrice + laborCost (if applicable)
     status: 'Pendiente' | 'En Progreso' | 'Realizado';
     profitMargin?: number | null; // Optional percentage, allow null
     laborCost?: number | null; // Optional estimated labor cost, allow null
-    estimatedCost: number; // Calculated: quantity * unitPrice + laborCost (if applicable)
+    executionPercentage?: number | null; // Percentage of completion (0-100), allow null
+    startDate?: Date | null; // Planned/Actual start date, allow null
+    endDate?: Date | null; // Planned/Actual end date, allow null
     createdAt?: Date;
     updatedAt?: Date;
 }

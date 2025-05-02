@@ -15,6 +15,7 @@ const taskSchema = new Schema<ITask>(
     quantity: { type: Number, required: true, default: 1 },
     unitOfMeasure: { type: String, required: true },
     unitPrice: { type: Number, required: true, default: 0 },
+    estimatedDuration: { type: Number, default: null, required: false }, // Duration in days
     status: {
       type: String,
       enum: ['Pendiente', 'En Progreso', 'Realizado'],
@@ -24,6 +25,9 @@ const taskSchema = new Schema<ITask>(
     profitMargin: { type: Number, default: null, required: false }, // Optional, allow null
     laborCost: { type: Number, default: null, required: false }, // Optional, allow null
     estimatedCost: { type: Number, required: true }, // Calculated field, should be set during creation/update
+    executionPercentage: { type: Number, min: 0, max: 100, default: null, required: false }, // Percentage (0-100)
+    startDate: { type: Date, default: null, required: false },
+    endDate: { type: Date, default: null, required: false },
   },
   {
     timestamps: true, // Automatically adds createdAt and updatedAt
