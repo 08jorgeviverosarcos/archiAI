@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -49,7 +48,13 @@ const taskFormSchema = z.object({
 }).refine(data => {
     // Optional: Add validation if end date must be after start date
     if (data.startDate && data.endDate) {
-        return data.endDate >= data.startDate;
+        // Ensure dates are valid Date objects before comparison
+        if (data.startDate instanceof Date && !isNaN(data.startDate.getTime()) &&
+            data.endDate instanceof Date && !isNaN(data.endDate.getTime())) {
+            return data.endDate >= data.startDate;
+        }
+        // If dates are not valid Date objects at this point, bypass validation
+        return true;
     }
     return true;
 }, {
@@ -92,8 +97,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       laborCost: existingTask?.laborCost ?? null, // Default to null
       executionPercentage: existingTask?.executionPercentage ?? null, // Default to null
       // Initialize dates correctly, ensuring they are Date objects if present
-      startDate: existingTask?.startDate ? new Date(existingTask.startDate) : null,
-      endDate: existingTask?.endDate ? new Date(existingTask.endDate) : null,
+       startDate: existingTask?.startDate ? (new Date(existingTask.startDate) instanceof Date && !isNaN(new Date(existingTask.startDate).getTime()) ? new Date(existingTask.startDate) : null) : null,
+       endDate: existingTask?.endDate ? (new Date(existingTask.endDate) instanceof Date && !isNaN(new Date(existingTask.endDate).getTime()) ? new Date(existingTask.endDate) : null) : null,
     },
   });
 
@@ -110,8 +115,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             profitMargin: existingTask?.profitMargin ?? null, // Reset to null
             laborCost: existingTask?.laborCost ?? null, // Reset to null
             executionPercentage: existingTask?.executionPercentage ?? null, // Reset to null
-            startDate: existingTask?.startDate ? new Date(existingTask.startDate) : null,
-            endDate: existingTask?.endDate ? new Date(existingTask.endDate) : null,
+             startDate: existingTask?.startDate ? (new Date(existingTask.startDate) instanceof Date && !isNaN(new Date(existingTask.startDate).getTime()) ? new Date(existingTask.startDate) : null) : null,
+             endDate: existingTask?.endDate ? (new Date(existingTask.endDate) instanceof Date && !isNaN(new Date(existingTask.endDate).getTime()) ? new Date(existingTask.endDate) : null) : null,
        });
    }, [existingTask, form]);
 
@@ -146,21 +151,34 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
       if (!response.ok) {
         let errorMsg = `Fallo al ${existingTask ? 'actualizar' : 'crear'} la tarea`;
+        let errorDetails = '';
+        // Read the response body as text first
+        const errorText = await response.text();
+        console.error('API Error Response (Raw Text):', errorText);
         try {
-          const errorData = await response.json();
+          // Try parsing the text as JSON
+          const errorData = JSON.parse(errorText);
           errorMsg = errorData.message || errorMsg;
-          console.error('API Error Response:', errorData);
+          errorDetails = JSON.stringify(errorData.errors || errorData); // Get more details if available
+          console.error('API Error Response (Parsed JSON):', errorData);
         } catch(e) {
-            const errorText = await response.text();
-            console.error('API Error Response (Text):', errorText);
-            errorMsg = `${errorMsg}: ${errorText.substring(0, 100)}...`;
+          // If JSON parsing fails, use the raw text (or part of it)
+          errorDetails = errorText.substring(0, 200) + '...'; // Limit length
         }
-        throw new Error(errorMsg);
+         throw new Error(`${errorMsg}. Details: ${errorDetails}`);
       }
 
-      const savedTask = await response.json();
-      console.log("Task saved successfully:", savedTask);
-      onTaskSaved(savedTask.task); // Pass the saved task data back
+      const savedTaskResponse = await response.json();
+      console.log("Task saved successfully:", savedTaskResponse);
+      // Check if the response has the task nested within a 'task' property
+       if (savedTaskResponse && savedTaskResponse.task) {
+            onTaskSaved(savedTaskResponse.task); // Pass the nested task data
+       } else {
+            console.warn("Task data not found in expected structure in response:", savedTaskResponse);
+             // Attempt to pass the whole response if it looks like a task object
+            onTaskSaved(savedTaskResponse);
+       }
+
 
     } catch (error: any) {
       console.error(`Error saving task:`, error);
@@ -216,7 +234,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                   <FormItem>
                     <FormLabel>Cantidad</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))} />
+                       <Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))} value={field.value === 0 ? '' : field.value}/>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -242,7 +260,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                       <FormItem>
                       <FormLabel>Precio Unitario</FormLabel>
                       <FormControl>
-                          <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))} />
+                          <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))} value={field.value === 0 ? '' : field.value}/>
                       </FormControl>
                       <FormMessage />
                       </FormItem>
@@ -345,8 +363,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                         <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
-                            selected={field.value ?? undefined} // Pass undefined if null
-                            onSelect={(date) => field.onChange(date)} // Update state on select
+                             selected={field.value ?? undefined} // Pass undefined if null
+                            onSelect={(date) => field.onChange(date || null)} // Update state on select, pass null if date is undefined
                             disabled={(date) =>
                               // Optional: Disable past dates if needed
                               // date < new Date() || date < new Date("1900-01-01")
@@ -389,11 +407,13 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                           <Calendar
                             mode="single"
                             selected={field.value ?? undefined} // Pass undefined if null
-                            onSelect={field.onChange} // Update state on select
-                            disabled={(date) =>
-                              // Disable dates before the start date if a start date is selected
-                              (form.getValues("startDate") && date < form.getValues("startDate")!) || false
-                            }
+                             onSelect={(date) => field.onChange(date || null)} // Update state on select, pass null if date is undefined
+                            disabled={(date) => {
+                               // Ensure getValues("startDate") exists and is a valid Date before comparison
+                                const startDateValue = form.getValues("startDate");
+                                const validStartDate = startDateValue instanceof Date && !isNaN(startDateValue.getTime());
+                                return (validStartDate && date < startDateValue!) || false;
+                            }}
                             initialFocus
                           />
                         </PopoverContent>
@@ -410,13 +430,14 @@ export const TaskForm: React.FC<TaskFormProps> = ({
               name="executionPercentage"
               render={({ field: { value, onChange } }) => ( // Destructure value and onChange
                 <FormItem>
+                   {/* Display the current percentage, default to 0 if null/undefined */}
                   <FormLabel>Porcentaje de Ejecución ({value ?? 0}%)</FormLabel>
                    <FormControl>
                     <Slider
                       // Use value directly from field, default to 0 if null/undefined
                       value={[value ?? 0]}
                       // Update form field value on change
-                      onValueChange={(vals) => onChange(vals[0])}
+                       onValueChange={(vals) => onChange(vals[0])}
                       max={100}
                       step={1}
                       className="py-2" // Add some padding
