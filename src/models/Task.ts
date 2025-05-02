@@ -21,8 +21,8 @@ const taskSchema = new Schema<ITask>(
       default: 'Pendiente',
       required: true,
     },
-    profitMargin: { type: Number }, // Optional
-    laborCost: { type: Number }, // Optional
+    profitMargin: { type: Number, default: null, required: false }, // Optional, allow null
+    laborCost: { type: Number, default: null, required: false }, // Optional, allow null
     estimatedCost: { type: Number, required: true }, // Calculated field, should be set during creation/update
   },
   {

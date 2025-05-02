@@ -31,8 +31,8 @@ const taskFormSchema = z.object({
   unitOfMeasure: z.string().min(1, "La unidad de medida es requerida"),
   unitPrice: z.number().min(0, "El precio unitario debe ser positivo").default(0),
   status: z.enum(['Pendiente', 'En Progreso', 'Realizado']).default('Pendiente'),
-  profitMargin: z.number().optional().nullable(),
-  laborCost: z.number().min(0).optional().nullable(),
+  profitMargin: z.number().optional().nullable(), // Make optional and nullable
+  laborCost: z.number().min(0).optional().nullable(), // Make optional and nullable
   // projectId and phaseUUID will be passed as props, not part of the form fields
   // estimatedCost is calculated
 });
@@ -66,8 +66,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       unitOfMeasure: existingTask?.unitOfMeasure ?? '',
       unitPrice: existingTask?.unitPrice ?? 0,
       status: existingTask?.status ?? 'Pendiente',
-      profitMargin: existingTask?.profitMargin ?? null,
-      laborCost: existingTask?.laborCost ?? null,
+      profitMargin: existingTask?.profitMargin ?? null, // Default to null if not provided
+      laborCost: existingTask?.laborCost ?? null, // Default to null if not provided
     },
   });
 
@@ -80,8 +80,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
            unitOfMeasure: existingTask?.unitOfMeasure ?? '',
            unitPrice: existingTask?.unitPrice ?? 0,
            status: existingTask?.status ?? 'Pendiente',
-           profitMargin: existingTask?.profitMargin ?? null,
-           laborCost: existingTask?.laborCost ?? null,
+           profitMargin: existingTask?.profitMargin ?? null, // Reset to null
+           laborCost: existingTask?.laborCost ?? null, // Reset to null
        });
    }, [existingTask, form]);
 
@@ -93,9 +93,14 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
       const payload = {
         ...data,
+        // Ensure null is sent if fields are empty/null in the form
+        profitMargin: data.profitMargin === undefined ? null : data.profitMargin,
+        laborCost: data.laborCost === undefined ? null : data.laborCost,
         projectId: projectId, // Add projectId
         phaseUUID: phaseUUID, // Add phaseUUID
       };
+
+      console.log("Sending task payload:", payload);
 
       const response = await fetch(url, {
         method: method,
@@ -104,11 +109,21 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to ${existingTask ? 'update' : 'create'} task`);
+        let errorMsg = `Failed to ${existingTask ? 'update' : 'create'} task`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.message || errorMsg;
+          console.error('API Error Response:', errorData);
+        } catch(e) {
+            const errorText = await response.text();
+            console.error('API Error Response (Text):', errorText);
+            errorMsg = `${errorMsg}: ${errorText.substring(0, 100)}...`;
+        }
+        throw new Error(errorMsg);
       }
 
       const savedTask = await response.json();
+      console.log("Task saved successfully:", savedTask);
       onTaskSaved(savedTask.task); // Pass the saved task data back
 
     } catch (error: any) {
@@ -162,7 +177,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 <FormItem>
                   <FormLabel>Cantidad</FormLabel>
                   <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(Number(e.target.value))} />
+                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -188,7 +203,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                     <FormItem>
                     <FormLabel>Precio Unitario</FormLabel>
                     <FormControl>
-                        <Input type="number" step="0.01" {...field} onChange={e => field.onChange(Number(e.target.value))} />
+                        <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))} />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
@@ -204,6 +219,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                     <FormItem>
                     <FormLabel>Costo Mano Obra (Opc)</FormLabel>
                     <FormControl>
+                         {/* Handle empty string to pass null */}
                          <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''}/>
                     </FormControl>
                     <FormMessage />
@@ -217,6 +233,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                     <FormItem>
                     <FormLabel>% Utilidad (Opc)</FormLabel>
                     <FormControl>
+                         {/* Handle empty string to pass null */}
                          <Input type="number" step="0.1" placeholder="Ej. 10" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''}/>
                     </FormControl>
                     <FormMessage />

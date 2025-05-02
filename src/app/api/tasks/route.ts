@@ -17,10 +17,10 @@ const taskCreateSchema = z.object({
   unitOfMeasure: z.string().min(1, { message: "Unit of measure is required" }),
   unitPrice: z.number().min(0, { message: "Unit price must be non-negative" }).default(0),
   status: z.enum(['Pendiente', 'En Progreso', 'Realizado']).default('Pendiente'),
-  profitMargin: z.number().optional(),
-  laborCost: z.number().min(0).optional(),
+  profitMargin: z.number().optional().nullable(), // Allow null
+  laborCost: z.number().min(0).optional().nullable(), // Allow null
   // estimatedCost is calculated, not directly taken from input usually
-});
+}).strict(); // Prevent extra fields from being passed
 
 // GET handler to fetch tasks based on projectId and phaseUUID
 export async function GET(req: Request) {
@@ -94,17 +94,18 @@ export async function POST(req: Request) {
     const parsedBody = taskCreateSchema.parse(body);
     console.log("Parsed body:", parsedBody);
 
-    // Calculate estimated cost (can be done here or in a pre-save hook)
+    // Calculate estimated cost
+    // Use || 0 to handle null/undefined laborCost safely
     const calculatedCost = (parsedBody.quantity * parsedBody.unitPrice) + (parsedBody.laborCost || 0);
-    // Add profit margin if applicable
-    // const finalCost = parsedBody.profitMargin
-    //   ? calculatedCost * (1 + parsedBody.profitMargin / 100)
-    //   : calculatedCost;
+    // Profit margin is not typically added to the base cost, but used for pricing/reporting
 
     const newTaskData = {
       ...parsedBody,
       projectId: new mongoose.Types.ObjectId(parsedBody.projectId), // Convert string ID to ObjectId
       estimatedCost: calculatedCost, // Use calculated cost
+      // Ensure null is saved if values are null/undefined in parsedBody
+      profitMargin: parsedBody.profitMargin === undefined ? null : parsedBody.profitMargin,
+      laborCost: parsedBody.laborCost === undefined ? null : parsedBody.laborCost,
     };
 
     console.log("Data for new task:", newTaskData);
@@ -119,6 +120,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('Error creating task:', error);
     if (error instanceof z.ZodError) {
+      console.error("Zod Validation Errors:", error.errors);
       return new NextResponse(JSON.stringify({
         message: "Validation error",
         errors: error.errors

@@ -22,7 +22,7 @@ export interface InitialPlanPhase {
   estimatedDuration: number; // Use consistent name
   estimatedCost: number;
   order: number; // Add order field
-  tasks?: Task[];
+  tasks?: Task[]; // Optional tasks array for potential population
 }
 
 // New type for the data structure of the InitialPlan document fetched from API
@@ -47,8 +47,8 @@ export interface Task {
     unitOfMeasure: string; // e.g., 'm²', 'unitario', 'kg', 'hr'
     unitPrice: number;
     status: 'Pendiente' | 'En Progreso' | 'Realizado';
-    profitMargin?: number; // Optional percentage
-    laborCost?: number; // Optional estimated labor cost
+    profitMargin?: number | null; // Optional percentage, allow null
+    laborCost?: number | null; // Optional estimated labor cost, allow null
     estimatedCost: number; // Calculated: quantity * unitPrice + laborCost (if applicable)
     createdAt?: Date;
     updatedAt?: Date;
