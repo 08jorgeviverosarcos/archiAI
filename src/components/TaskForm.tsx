@@ -117,6 +117,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
   const onSubmit = async (data: TaskFormData) => {
     setIsSubmitting(true);
+    console.log("Submitting task form...", data); // Add log
     try {
       const url = existingTask?._id ? `/api/tasks/${existingTask._id}` : '/api/tasks';
       const method = existingTask?._id ? 'PUT' : 'POST';
@@ -177,7 +178,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     <Form {...form}>
        {/* Wrap form content in ScrollArea */}
       <ScrollArea className="flex-grow overflow-y-auto pr-6"> {/* Added pr-6 for scrollbar spacing */}
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+         {/* Give the form an ID */}
+        <form id="task-form-id" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <FormField
             control={form.control}
             name="title"
