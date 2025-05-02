@@ -21,12 +21,18 @@ const taskCreateSchema = z.object({
   profitMargin: z.number().optional().nullable(), // Allow null
   laborCost: z.number().min(0).optional().nullable(), // Allow null
   executionPercentage: z.number().min(0).max(100).optional().nullable(), // Optional percentage
-  startDate: z.date().optional().nullable(), // Optional date
-  endDate: z.date().optional().nullable(), // Optional date
+  startDate: z.date().optional().nullable(), // Optional date, allow null
+  endDate: z.date().optional().nullable(), // Optional date, allow null
   // estimatedCost is calculated, not directly taken from input usually
 }).strict().refine(data => { // Add refinement for date validation
     if (data.startDate && data.endDate) {
-        return data.endDate >= data.startDate;
+        // Ensure dates are valid before comparison
+        if (data.startDate instanceof Date && !isNaN(data.startDate.getTime()) &&
+            data.endDate instanceof Date && !isNaN(data.endDate.getTime())) {
+             return data.endDate >= data.startDate;
+        }
+        // If dates are not valid Date objects at this point, bypass validation
+        return true;
     }
     return true;
 }, {
@@ -100,15 +106,42 @@ export async function POST(req: Request) {
     console.log("Database connected for creating task.");
 
     const body = await req.json();
-    console.log("Request body:", body);
+    console.log("Raw request body (POST):", JSON.stringify(body, null, 2)); // Log raw body
 
-    // Convert date strings to Date objects before validation if necessary
-    if (body.startDate) body.startDate = new Date(body.startDate);
-    if (body.endDate) body.endDate = new Date(body.endDate);
+    // Convert date strings to Date objects or null before validation
+    try {
+        if (body.startDate && typeof body.startDate === 'string') {
+            const parsedStartDate = new Date(body.startDate);
+            // Check if the parsed date is valid
+            body.startDate = !isNaN(parsedStartDate.getTime()) ? parsedStartDate : null;
+            if (isNaN(parsedStartDate.getTime())) console.warn("Invalid start date string received:", body.startDate);
+        } else if (body.startDate === '' || body.startDate === undefined) {
+             body.startDate = null; // Ensure empty strings or undefined become null
+        }
+
+        if (body.endDate && typeof body.endDate === 'string') {
+            const parsedEndDate = new Date(body.endDate);
+            // Check if the parsed date is valid
+            body.endDate = !isNaN(parsedEndDate.getTime()) ? parsedEndDate : null;
+             if (isNaN(parsedEndDate.getTime())) console.warn("Invalid end date string received:", body.endDate);
+        } else if (body.endDate === '' || body.endDate === undefined) {
+            body.endDate = null; // Ensure empty strings or undefined become null
+        }
+    } catch (dateError) {
+        console.error("Error parsing dates before validation:", dateError);
+        // Decide if this should be a hard error or just proceed with null dates
+        body.startDate = null;
+        body.endDate = null;
+         // Potentially return a 400 error here if dates are critical and invalid format
+        // return new NextResponse(JSON.stringify({ message: 'Invalid date format provided' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+
+
+    console.log("Body after date preprocessing (POST):", JSON.stringify(body, null, 2));
 
     // Validate request body
     const parsedBody = taskCreateSchema.parse(body);
-    console.log("Parsed body:", parsedBody);
+    console.log("Parsed body (POST):", JSON.stringify(parsedBody, null, 2));
 
     // Calculate estimated cost
     // Use || 0 to handle null/undefined laborCost safely
@@ -118,36 +151,41 @@ export async function POST(req: Request) {
       ...parsedBody,
       projectId: new mongoose.Types.ObjectId(parsedBody.projectId), // Convert string ID to ObjectId
       estimatedCost: calculatedCost, // Use calculated cost
-      // Ensure null is saved if values are null/undefined in parsedBody
-      profitMargin: parsedBody.profitMargin === undefined ? null : parsedBody.profitMargin,
-      laborCost: parsedBody.laborCost === undefined ? null : parsedBody.laborCost,
-      estimatedDuration: parsedBody.estimatedDuration === undefined ? null : parsedBody.estimatedDuration,
-      executionPercentage: parsedBody.executionPercentage === undefined ? null : parsedBody.executionPercentage,
-      startDate: parsedBody.startDate || null,
-      endDate: parsedBody.endDate || null,
+      // Ensure null is saved if values are null/undefined in parsedBody, otherwise use parsed value
+      profitMargin: parsedBody.profitMargin,
+      laborCost: parsedBody.laborCost,
+      estimatedDuration: parsedBody.estimatedDuration,
+      executionPercentage: parsedBody.executionPercentage,
+      // Dates should already be Date objects or null from preprocessing and validation
+      startDate: parsedBody.startDate,
+      endDate: parsedBody.endDate,
     };
 
-    console.log("Data for new task:", newTaskData);
+    console.log("Data for new task (POST):", JSON.stringify(newTaskData, null, 2));
 
     const newTask = new Task(newTaskData);
     await newTask.save();
 
-    console.log("Task created successfully:", newTask);
+    console.log("Task created successfully (POST):", newTask);
 
     return NextResponse.json({ task: newTask }, { status: 201 }); // Return created task with 201 status
 
   } catch (error) {
-    console.error('Error creating task:', error);
+    console.error('Error creating task (POST):', error);
     if (error instanceof z.ZodError) {
-      console.error("Zod Validation Errors:", error.errors);
+      console.error("Zod Validation Errors (POST):", error.errors);
       return new NextResponse(JSON.stringify({
         message: "Validation error",
         errors: error.errors
       }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
+    // Log the specific error message
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Detailed error message (POST):", errorMessage);
+
     return new NextResponse(JSON.stringify({
       message: 'Failed to create task.',
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage, // Send specific error message
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }

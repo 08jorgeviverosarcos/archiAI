@@ -18,17 +18,23 @@ const taskUpdateSchema = z.object({
   quantity: z.number().min(0).optional(),
   unitOfMeasure: z.string().min(1).optional(),
   unitPrice: z.number().min(0).optional(),
-  estimatedDuration: z.number().min(0).optional().nullable(), // Optional duration
+  estimatedDuration: z.number().min(0).optional().nullable(), // Optional duration, allow null
   status: z.enum(['Pendiente', 'En Progreso', 'Realizado']).optional(),
   profitMargin: z.number().optional().nullable(), // Allow optional and nullable
   laborCost: z.number().min(0).optional().nullable(), // Allow optional and nullable
-  executionPercentage: z.number().min(0).max(100).optional().nullable(), // Optional percentage
-  startDate: z.date().optional().nullable(), // Optional date
-  endDate: z.date().optional().nullable(), // Optional date
+  executionPercentage: z.number().min(0).max(100).optional().nullable(), // Optional percentage, allow null
+  startDate: z.date().optional().nullable(), // Optional date, allow null
+  endDate: z.date().optional().nullable(), // Optional date, allow null
   // estimatedCost will be recalculated
 }).strict().refine(data => { // Add refinement for date validation
     if (data.startDate && data.endDate) {
-        return data.endDate >= data.startDate;
+         // Ensure dates are valid before comparison
+         if (data.startDate instanceof Date && !isNaN(data.startDate.getTime()) &&
+             data.endDate instanceof Date && !isNaN(data.endDate.getTime())) {
+              return data.endDate >= data.startDate;
+         }
+         // If dates are not valid Date objects at this point, bypass validation
+         return true;
     }
     return true;
 }, {
@@ -55,16 +61,39 @@ export async function PUT(req: Request, { params }: { params: Params }) {
     console.log(`Database connected for updating task ${taskId}.`);
 
     const body = await req.json();
-    console.log(`Request body for update:`, body);
+    console.log(`Raw request body for update (PUT):`, JSON.stringify(body, null, 2)); // Log raw body
 
-    // Convert date strings to Date objects before validation if necessary
-    if (body.startDate) body.startDate = new Date(body.startDate);
-    if (body.endDate) body.endDate = new Date(body.endDate);
+    // Convert date strings to Date objects or null before validation
+     try {
+         if (body.startDate && typeof body.startDate === 'string') {
+             const parsedStartDate = new Date(body.startDate);
+             body.startDate = !isNaN(parsedStartDate.getTime()) ? parsedStartDate : null;
+             if (isNaN(parsedStartDate.getTime())) console.warn("Invalid start date string received (PUT):", body.startDate);
+         } else if (body.startDate === '' || body.startDate === undefined) {
+             body.startDate = null;
+         }
 
+         if (body.endDate && typeof body.endDate === 'string') {
+             const parsedEndDate = new Date(body.endDate);
+             body.endDate = !isNaN(parsedEndDate.getTime()) ? parsedEndDate : null;
+             if (isNaN(parsedEndDate.getTime())) console.warn("Invalid end date string received (PUT):", body.endDate);
+         } else if (body.endDate === '' || body.endDate === undefined) {
+             body.endDate = null;
+         }
+     } catch (dateError) {
+        console.error("Error parsing dates before validation (PUT):", dateError);
+        // Decide if this should be a hard error or just proceed with null dates
+        body.startDate = null;
+        body.endDate = null;
+        // Potentially return a 400 error here
+        // return new NextResponse(JSON.stringify({ message: 'Invalid date format provided' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    console.log(`Body after date preprocessing for update (PUT):`, JSON.stringify(body, null, 2));
 
     // Validate request body
     const parsedBody = taskUpdateSchema.parse(body);
-    console.log(`Parsed body for update:`, parsedBody);
+    console.log(`Parsed body for update (PUT):`, JSON.stringify(parsedBody, null, 2));
 
     // Find the existing task to recalculate cost based on potentially updated fields
     const existingTask = await Task.findById(taskId);
@@ -77,20 +106,16 @@ export async function PUT(req: Request, { params }: { params: Params }) {
     }
 
     // Prepare update data, including potentially null values for optional fields
-    const updateData: Partial<typeof parsedBody & { estimatedCost: number }> = {};
+    // Initialize with an empty object that conforms to the structure expected by $set
+    const updateData: { [key: string]: any } = {};
 
-    // Only include fields that are present in the parsedBody
+
+    // Iterate over parsedBody keys and add them to updateData if they exist in parsedBody
      for (const key in parsedBody) {
         if (Object.prototype.hasOwnProperty.call(parsedBody, key)) {
-            // Handle specific types like Date and null values
-            if (key === 'startDate' || key === 'endDate') {
-                 updateData[key as keyof typeof updateData] = parsedBody[key as keyof typeof parsedBody] || null;
-            } else if (key === 'profitMargin' || key === 'laborCost' || key === 'estimatedDuration' || key === 'executionPercentage') {
-                updateData[key as keyof typeof updateData] = parsedBody[key as keyof typeof parsedBody];
-             } else if (parsedBody[key as keyof typeof parsedBody] !== undefined) {
-                // @ts-ignore - Allow dynamic assignment
-                updateData[key as keyof typeof updateData] = parsedBody[key as keyof typeof parsedBody];
-            }
+             // Directly use the value from parsedBody, which could be null for optional fields
+             // @ts-ignore - Allow dynamic assignment
+            updateData[key] = parsedBody[key as keyof typeof parsedBody];
         }
     }
 
@@ -108,7 +133,7 @@ export async function PUT(req: Request, { params }: { params: Params }) {
       updateData.estimatedCost = calculatedCost;
     }
 
-    console.log(`Update data being sent to MongoDB:`, updateData);
+    console.log(`Update data being sent to MongoDB (PUT):`, JSON.stringify(updateData, null, 2));
 
     // Perform the update using $set to update only provided fields
     const updatedTask = await Task.findByIdAndUpdate(
@@ -127,21 +152,25 @@ export async function PUT(req: Request, { params }: { params: Params }) {
       });
     }
 
-    console.log(`Task ${taskId} updated successfully:`, updatedTask);
+    console.log(`Task ${taskId} updated successfully (PUT):`, updatedTask);
     return NextResponse.json({ task: updatedTask });
 
   } catch (error) {
-    console.error(`Error updating task ${taskId}:`, error);
+    console.error(`Error updating task ${taskId} (PUT):`, error);
     if (error instanceof z.ZodError) {
-       console.error("Zod Validation Errors:", error.errors);
+       console.error("Zod Validation Errors (PUT):", error.errors);
       return new NextResponse(JSON.stringify({
         message: "Validation error",
         errors: error.errors
       }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
+    // Log the specific error message
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Detailed error message (PUT):", errorMessage);
+
     return new NextResponse(JSON.stringify({
       message: 'Failed to update task.',
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage, // Send specific error message
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
@@ -187,3 +216,4 @@ export async function DELETE(req: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
+
