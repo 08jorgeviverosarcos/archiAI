@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { InitialPlanPhase, Task } from '@/types';
+import type { InitialPlanPhase, Task } from '@/types'; // Use type alias
 import {
     Card,
     CardContent,
@@ -25,13 +25,17 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { TaskForm } from '@/components/TaskForm'; // Import the TaskForm component
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress'; // Import Progress component
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale'; // Import Spanish locale for date formatting
 
 
+// Rename phaseId to phaseUUID to match the route parameter name and logic
 export default function PhaseTasksPage() {
     const params = useParams();
     const router = useRouter();
     const projectId = params.projectId as string;
-    const phaseId = params.phaseId as string;
+    const phaseId = params.phaseId as string; // Get the UUID from the route (this is phaseUUID)
     const { toast } = useToast();
 
     const [phaseDetails, setPhaseDetails] = useState<InitialPlanPhase | null>(null); // Store phase details
@@ -44,7 +48,7 @@ export default function PhaseTasksPage() {
     // Fetch phase details and tasks
     const fetchPhaseData = useCallback(async () => {
         if (!projectId || !phaseId) return;
-        console.log(`Fetching data for projectId: ${projectId}, phaseId: ${phaseId}`);
+        console.log(`Fetching data for projectId: ${projectId}, phaseId (phaseUUID): ${phaseId}`);
         setIsLoading(true);
         setError(null);
         try {
@@ -54,7 +58,12 @@ export default function PhaseTasksPage() {
             console.log(`Initial plan fetch status: ${planRes.status}`);
             if (!planRes.ok) {
                 if (planRes.status === 404) {
-                    throw new Error("Planificación inicial no encontrada para este proyecto.");
+                    const projectRes = await fetch(`/api/projects/${projectId}`);
+                    if (projectRes.ok) {
+                         throw new Error("Planificación inicial no encontrada para este proyecto.");
+                    } else {
+                         throw new Error("Proyecto no encontrado.");
+                    }
                 }
                 let errorMsg = "Fallo al cargar la planificación inicial.";
                 try {
@@ -66,27 +75,44 @@ export default function PhaseTasksPage() {
             const planData = await planRes.json();
             console.log("Fetched initial plan data:", planData);
 
-            // Find the specific phase within the fetched plan using phaseUUID
-            const foundPhase = planData.initialPlan?.phases?.find((p: InitialPlanPhase) => p.phaseId === phaseId);
+            if (!planData.initialPlan || !Array.isArray(planData.initialPlan.phases)) {
+                throw new Error("La estructura de la planificación inicial es inválida o no contiene fases.");
+            }
+
+            const foundPhase = planData.initialPlan.phases.find((p: InitialPlanPhase) => p.phaseId === phaseId);
             console.log("Found phase:", foundPhase);
 
             if (foundPhase) {
                 setPhaseDetails(foundPhase);
-                setTasks(foundPhase.tasks || []); // Set tasks from fetched phase data
             } else {
-                // Phase not found within the plan
                 throw new Error(`Fase con UUID ${phaseId} no encontrada en la planificación del proyecto ${projectId}`);
             }
 
+             console.log(`Fetching tasks for project ${projectId}, phase UUID: ${phaseId}`);
+             const tasksRes = await fetch(`/api/tasks?projectId=${projectId}&phaseUUID=${phaseId}`);
+             console.log(`Tasks fetch status: ${tasksRes.status}`);
+             if (!tasksRes.ok) {
+                let errorMsg = "Fallo al cargar las tareas.";
+                try {
+                    const errorData = await tasksRes.json();
+                    errorMsg = errorData.message || errorMsg;
+                } catch (e) {/* ignore */}
+                 throw new Error(errorMsg);
+             }
+             const tasksData = await tasksRes.json();
+             console.log("Fetched tasks data via dedicated endpoint:", tasksData);
+             setTasks(tasksData.tasks || []);
+
+
         } catch (err: any) {
             console.error("Error loading phase tasks page:", err);
-            setError(`No se pudieron cargar los datos de la fase: ${err.message}`);
-            setPhaseDetails(null); // Clear phase details on error
-            setTasks([]); // Clear tasks on error
+            setError(`${err.message}`);
+            setPhaseDetails(null);
+            setTasks([]);
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: `No se pudieron cargar los datos de la fase: ${err.message}`,
+                description: `${err.message}`,
             });
         } finally {
             setIsLoading(false);
@@ -97,41 +123,34 @@ export default function PhaseTasksPage() {
 
     useEffect(() => {
         fetchPhaseData();
-    }, [fetchPhaseData]); // Fetch data when component mounts or dependencies change
+    }, [fetchPhaseData]);
 
-    // Handle opening the form for adding a new task
     const handleAddTask = () => {
-        setEditingTask(null); // Ensure we are not editing
+        setEditingTask(null);
         setIsFormOpen(true);
     };
 
-    // Handle opening the form for editing an existing task
     const handleEditTask = (task: Task) => {
         setEditingTask(task);
         setIsFormOpen(true);
     };
 
-     // Handle closing the form
      const handleFormClose = () => {
          setIsFormOpen(false);
-         setEditingTask(null); // Clear editing state
+         setEditingTask(null);
      };
 
-    // Callback function for when a task is saved (created or updated)
     const handleTaskSaved = (savedTask: Task) => {
-        fetchPhaseData(); // Refetch tasks to show the latest data
-        handleFormClose(); // Close the dialog
+        fetchPhaseData(); 
+        handleFormClose(); 
         toast({
           title: editingTask ? 'Tarea Actualizada' : 'Tarea Creada',
           description: `La tarea "${savedTask.title}" ha sido guardada exitosamente.`,
         });
     };
 
-    // Handle deleting a task
      const handleDeleteTask = async (taskId: string) => {
         if (!taskId) return;
-
-        // Optional: Add a confirmation dialog here
 
         try {
             const response = await fetch(`/api/tasks/${taskId}`, {
@@ -151,7 +170,7 @@ export default function PhaseTasksPage() {
                 title: 'Tarea Eliminada',
                 description: 'La tarea ha sido eliminada exitosamente.',
             });
-            fetchPhaseData(); // Refresh the task list
+            fetchPhaseData(); 
         } catch (err: any) {
             console.error("Error deleting task:", err);
             toast({
@@ -172,7 +191,6 @@ export default function PhaseTasksPage() {
         );
     }
 
-     // Error state or if phase details couldn't be loaded
      if (error) {
         return (
             <div className="container mx-auto p-4 md:p-8 text-center">
@@ -184,7 +202,6 @@ export default function PhaseTasksPage() {
         );
     }
 
-    // If loading is finished but phaseDetails is still null (should be caught by error state now)
     if (!phaseDetails) {
          return (
             <div className="container mx-auto p-4 md:p-8 text-center">
@@ -209,18 +226,18 @@ export default function PhaseTasksPage() {
                  </div>
                  <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
                     <DialogTrigger asChild>
-                         <Button onClick={handleAddTask} disabled={tasks.length == 0}>
+                         <Button onClick={handleAddTask}>
                              <PlusCircle className="mr-2 h-4 w-4" /> Agregar Tarea
                          </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[600px]"> {/* Adjust width as needed */}
+                    <DialogContent className="sm:max-w-[750px] max-h-[90vh] flex flex-col overflow-hidden">
                         <DialogHeader>
                             <DialogTitle>{editingTask ? 'Editar Tarea' : 'Agregar Nueva Tarea'}</DialogTitle>
                         </DialogHeader>
                         <TaskForm
                             projectId={projectId}
-                            phaseUUID={phaseId}
-                            existingTask={editingTask} // Pass task if editing, null if adding
+                            phaseUUID={phaseId} 
+                            existingTask={editingTask}
                             onTaskSaved={handleTaskSaved}
                             onCancel={handleFormClose}
                          />
@@ -228,7 +245,6 @@ export default function PhaseTasksPage() {
                 </Dialog>
             </div>
 
-            {/* Task List Area */}
             <Card>
                 <CardHeader>
                     <CardTitle>Lista de Tareas</CardTitle>
@@ -241,6 +257,10 @@ export default function PhaseTasksPage() {
                                 <TableRow>
                                     <TableHead>Título</TableHead>
                                     <TableHead>Estado</TableHead>
+                                    <TableHead className="text-center">Dur. (días)</TableHead>
+                                    <TableHead className="text-center">Progreso</TableHead>
+                                    <TableHead className="text-center">Inicio</TableHead>
+                                    <TableHead className="text-center">Fin</TableHead>
                                     <TableHead className="text-right">Costo Est.</TableHead>
                                     <TableHead className="text-right">Acciones</TableHead>
                                 </TableRow>
@@ -253,16 +273,32 @@ export default function PhaseTasksPage() {
                                             <Badge variant={
                                                 task.status === 'Realizado' ? 'default' :
                                                 task.status === 'En Progreso' ? 'secondary' :
-                                                'outline' // Pendiente
+                                                'outline'
                                             }>{task.status}</Badge>
                                         </TableCell>
+                                        <TableCell className="text-center">{task.estimatedDuration ?? '-'}</TableCell>
+                                         <TableCell className="text-center min-w-[100px]">
+                                            {task.executionPercentage !== null && task.executionPercentage !== undefined ? (
+                                                <div className="flex items-center justify-center gap-2">
+                                                     <Progress value={task.executionPercentage} className="h-2 flex-1" />
+                                                     <span className="text-xs text-muted-foreground">{task.executionPercentage}%</span>
+                                                </div>
+                                            ) : (
+                                                 '-'
+                                            )}
+                                         </TableCell>
+                                         <TableCell className="text-center">
+                                              {task.startDate ? format(new Date(task.startDate), 'dd/MM/yy', { locale: es }) : '-'}
+                                         </TableCell>
+                                          <TableCell className="text-center">
+                                             {task.endDate ? format(new Date(task.endDate), 'dd/MM/yy', { locale: es }) : '-'}
+                                          </TableCell>
                                         <TableCell className="text-right">{task.estimatedCost.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right space-x-2">
+                                        <TableCell className="text-right space-x-1">
                                              <Button variant="ghost" size="icon" onClick={() => handleEditTask(task)}>
                                                  <Edit className="h-4 w-4" />
                                                  <span className="sr-only">Editar</span>
                                              </Button>
-                                             {/* Ensure task._id is not undefined before calling delete */}
                                              {task._id && (
                                                  <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task._id!)}>
                                                     <Trash2 className="h-4 w-4 text-destructive" />
@@ -275,16 +311,14 @@ export default function PhaseTasksPage() {
                             </TableBody>
                         </Table>
                     ) : (
-                        
-                        <Button onClick={handleAddTask}>
-                          <PlusCircle className="mr-2 h-4 w-4" /> Agregar Tarea
-                        </Button>
+                         <div className="text-center py-8">
+                            <p className="text-muted-foreground mb-4">No hay tareas definidas para esta fase.</p>
+                            <Button onClick={handleAddTask}>
+                                <PlusCircle className="mr-2 h-4 w-4" /> Agregar Tarea
+                            </Button>
+                         </div>
                     )}
                 </CardContent>
-                {/* Optional Footer */}
-                {/* <CardFooter>
-                    <p>Total de tareas: {tasks.length}</p>
-                </CardFooter> */}
             </Card>
 
         </div>
