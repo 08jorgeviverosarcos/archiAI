@@ -21,7 +21,7 @@ const materialProjectCreateSchema = z.object({
   unitOfMeasure: z.string().min(1, "Unit of measure is required"),
   estimatedUnitPrice: z.number().min(0, "Estimated unit price must be non-negative").default(0),
   purchasedValue: z.number().min(0, "Purchased value must be non-negative").default(0),
-  profitMargin: z.number().min(0).optional().default(0),
+  profitMargin: z.number().min(0).optional().nullable().default(null), // Allow null, default to null
 });
 
 // GET all materials for a specific project
@@ -105,3 +105,4 @@ export async function POST(request: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
+

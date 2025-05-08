@@ -20,7 +20,7 @@ const materialProjectUpdateSchema = z.object({
   unitOfMeasure: z.string().min(1, "Unit of measure is required").optional(),
   estimatedUnitPrice: z.number().min(0, "Estimated unit price must be non-negative").optional(),
   purchasedValue: z.number().min(0, "Purchased value must be non-negative").optional(),
-  profitMargin: z.number().min(0).optional(),
+  profitMargin: z.number().min(0).optional().nullable(), // Allow null
 }).strict(); // Ensure no extra fields are passed
 
 // GET a specific material project by its ID
@@ -151,3 +151,4 @@ export async function DELETE(request: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
+

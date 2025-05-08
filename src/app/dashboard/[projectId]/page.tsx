@@ -3,9 +3,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ProjectDetails, InitialPlanPhase } from '@/types'; // Use InitialPlanPhase type
+import type { ProjectDetails, InitialPlanPhase } from '@/types'; // Use type alias
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, GanttChartSquare, ListTodo, Settings, DollarSign, Edit } from 'lucide-react'; // Icons
+import { ArrowLeft, Loader2, GanttChartSquare, ListTodo, Settings, DollarSign, Edit, Package } from 'lucide-react'; // Icons
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
@@ -22,6 +22,7 @@ export default function ProjectDashboardPage() {
 
     const [project, setProject] = useState<ProjectDetails | null>(null);
     const [initialPlanPhases, setInitialPlanPhases] = useState<InitialPlanPhase[] | null>(null); // Use InitialPlanPhase[]
+    const [initialPlanId, setInitialPlanId] = useState<string | null>(null); // Store the InitialPlan document _id
     const [initialPlanTotalCost, setInitialPlanTotalCost] = useState<number | null>(null); // State for plan's total cost
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -31,8 +32,9 @@ export default function ProjectDashboardPage() {
             if (!projectId) return;
             setIsLoading(true);
             setError(null);
-            setInitialPlanPhases(null); // Reset plan phases on new load
-            setInitialPlanTotalCost(null); // Reset plan cost
+            setInitialPlanPhases(null); 
+            setInitialPlanTotalCost(null); 
+            setInitialPlanId(null);
             try {
                 // 1. Fetch Project Details
                 console.log(`Fetching project details for ID: ${projectId}`);
@@ -52,13 +54,14 @@ export default function ProjectDashboardPage() {
 
                 // 2. Fetch Initial Plan using projectId
                 console.log(`Fetching initial plan details using project ID: ${projectId}`);
-                const planRes = await fetch(`/api/initial-plans/${projectId}`);
+                const planRes = await fetch(`/api/initial-plans/${projectId}`); // Fetch by projectId
                 console.log(`Initial plan response status: ${planRes.status}`);
                 if (!planRes.ok) {
                     if (planRes.status === 404) {
                         console.warn(`Initial plan not found for project ${projectId}`);
-                        setInitialPlanPhases(null); // No plan available
-                        setInitialPlanTotalCost(0); // Assume 0 cost if no plan
+                        setInitialPlanPhases(null); 
+                        setInitialPlanTotalCost(0); 
+                        setInitialPlanId(null);
                         toast({
                             variant: "default",
                             title: "Planificación No Encontrada",
@@ -76,6 +79,7 @@ export default function ProjectDashboardPage() {
                     const planData = await planRes.json();
                     console.log('Fetched initial plan data:', planData);
                     if (planData && planData.initialPlan && Array.isArray(planData.initialPlan.phases)) {
+                        setInitialPlanId(planData.initialPlan._id); // Store the InitialPlan document _id
                         const sortedPhases = [...planData.initialPlan.phases].sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0));
                         setInitialPlanPhases(sortedPhases);
                         setInitialPlanTotalCost(planData.initialPlan.totalEstimatedCost || 0);
@@ -84,6 +88,7 @@ export default function ProjectDashboardPage() {
                         console.warn(`Initial plan data for project ${projectId} is missing structure or phases.`, planData);
                         setInitialPlanPhases(null);
                         setInitialPlanTotalCost(0);
+                        setInitialPlanId(null);
                     }
                 }
 
@@ -103,10 +108,28 @@ export default function ProjectDashboardPage() {
 
         fetchProjectData();
      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [projectId, router, toast]); // Dependencies
+    }, [projectId, toast]); // Dependencies, router removed as it was not used in fetch
 
     const handleEditPlan = () => {
-        router.push(`/?edit=${projectId}`); // Navigate to home page with edit query param
+        // Ensure initialPlanId is available before navigating
+        if (initialPlanId && project?._id) {
+             router.push(`/?edit=${project._id}&planId=${initialPlanId}`);
+        } else if (project?._id) {
+            // If no planId, maybe project exists but plan doesn't.
+            // Navigate to create/edit form, which handles plan creation if it doesn't exist.
+            router.push(`/?edit=${project._id}`);
+            toast({
+                title: "Redirigiendo a Edición",
+                description: "No se encontró una planificación inicial, puedes crear una ahora."
+            })
+        }
+         else {
+             toast({
+                 variant: "destructive",
+                 title: "Error",
+                 description: "No se puede editar el plan, falta información del proyecto o del plan.",
+             });
+        }
     };
 
 
@@ -144,10 +167,13 @@ export default function ProjectDashboardPage() {
             </div>
             <CardDescription>{project.projectType} - {project.projectLocation || 'Ubicación no especificada'}</CardDescription>
 
-            {/* Edit Plan Button */}
-             <div className="flex justify-end">
+            {/* Action Buttons Row */}
+             <div className="flex justify-end space-x-2">
                  <Button variant="secondary" size="sm" onClick={handleEditPlan}>
                      <Edit className="mr-2 h-4 w-4" /> Editar Planificación Inicial
+                 </Button>
+                 <Button variant="secondary" size="sm" onClick={() => router.push(`/dashboard/${projectId}/materials`)}>
+                     <Package className="mr-2 h-4 w-4" /> Gestionar Materiales
                  </Button>
              </div>
 
@@ -208,9 +234,9 @@ export default function ProjectDashboardPage() {
                                     </Button>
                                 ))}
                             </div>
-                         ) : !isLoading ? ( // Only show message if not loading and plan is empty/null
+                         ) : !isLoading ? ( 
                             <p className="text-muted-foreground italic">No hay fases definidas en la planificación inicial para este proyecto.</p>
-                         ) : null /* Don't show anything while loading */}
+                         ) : null }
                     </CardContent>
                 </Card>
 
