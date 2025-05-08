@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -152,7 +151,7 @@ export default function ProjectDashboardPage() {
 
     if (error || !project) {
         return (
-            <SidebarProvider>
+            <SidebarProvider defaultOpen={false}>
                 <SidebarInset>
                      <div className="container mx-auto p-4 md:p-8 text-center">
                         <div className="mb-4 flex justify-start">
@@ -171,7 +170,7 @@ export default function ProjectDashboardPage() {
     const budgetExceeded = initialPlanTotalCost !== null && project.totalBudget !== null && initialPlanTotalCost > project.totalBudget;
 
     return (
-        <SidebarProvider>
+        <SidebarProvider defaultOpen={false}>
             <Sidebar collapsible="icon">
                 <SidebarHeader>
                     <Button variant="ghost" size="sm" onClick={() => router.push('/')} className="justify-start text-sidebar-foreground hover:text-sidebar-accent-foreground">
@@ -293,4 +292,3 @@ export default function ProjectDashboardPage() {
         </SidebarProvider>
     );
 }
-
