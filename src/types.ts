@@ -52,8 +52,36 @@ export interface Task {
     profitMargin?: number | null; // Optional percentage, allow null
     laborCost?: number | null; // Optional estimated labor cost, allow null
     executionPercentage?: number | null; // Percentage of completion (0-100), allow null
-    startDate?: Date | null; // Planned/Actual start date, allow null
-    endDate?: Date | null; // Planned/Actual end date, allow null
+    startDate?: Date | string | null; // Planned/Actual start date, allow null, accept string from form
+    endDate?: Date | string | null; // Planned/Actual end date, allow null, accept string from form
     createdAt?: Date;
     updatedAt?: Date;
+}
+
+// MaterialProject interface
+export interface MaterialProject {
+  _id?: string; // MongoDB ObjectId
+  projectId: string; // Reference to Project _id
+  referenceCode: string;
+  brand: string;
+  supplier: string;
+  description: string;
+  quantity: number;
+  unitOfMeasure: string;
+  estimatedUnitPrice: number;
+  purchasedValue: number; // Total value for the quantity purchased
+  profitMargin?: number | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+// MaterialTask interface
+export interface MaterialTask {
+  _id?: string; // MongoDB ObjectId
+  taskId: string; // Reference to Task _id
+  materialProjectId: string; // Reference to MaterialProject _id
+  phaseId: string; // Reference to the phase this task (and thus material usage) belongs to
+  quantityUsed: number;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
