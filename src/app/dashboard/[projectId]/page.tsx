@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -154,7 +155,7 @@ export default function ProjectDashboardPage() {
             <SidebarProvider>
                 <SidebarInset>
                      <div className="container mx-auto p-4 md:p-8 text-center">
-                        <div className="md:hidden mb-4 flex justify-start">
+                        <div className="mb-4 flex justify-start">
                            <SidebarTrigger />
                         </div>
                         <p className="text-destructive mb-4">{error || 'Proyecto no encontrado.'}</p>
@@ -171,37 +172,37 @@ export default function ProjectDashboardPage() {
 
     return (
         <SidebarProvider>
-            <Sidebar>
+            <Sidebar collapsible="icon">
                 <SidebarHeader>
                     <Button variant="ghost" size="sm" onClick={() => router.push('/')} className="justify-start text-sidebar-foreground hover:text-sidebar-accent-foreground">
                         <Home className="mr-2 h-4 w-4" />
-                        Proyectos
+                        <span>Proyectos</span>
                     </Button>
                 </SidebarHeader>
                 <SidebarContent>
                     <SidebarMenu>
                         <SidebarMenuItem>
-                            <SidebarMenuButton onClick={() => router.push(`/dashboard/${projectId}`)} isActive={true}>
+                            <SidebarMenuButton onClick={() => router.push(`/dashboard/${projectId}`)} isActive={true} tooltip="Dashboard">
                                 <LayoutDashboard />
-                                Dashboard
+                                <span>Dashboard</span>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                             <SidebarMenuButton onClick={() => router.push(`/dashboard/${projectId}/materials`)}>
+                             <SidebarMenuButton onClick={() => router.push(`/dashboard/${projectId}/materials`)} tooltip="Gestionar Materiales">
                                 <Package />
-                                Gestionar Materiales
+                                <span>Gestionar Materiales</span>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                            <SidebarMenuButton disabled> {/* Placeholder */}
+                            <SidebarMenuButton disabled tooltip="Presupuesto (Próximamente)"> {/* Placeholder */}
                                 <DollarSign />
-                                Presupuesto
+                                <span>Presupuesto</span>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                            <SidebarMenuButton disabled> {/* Placeholder */}
+                            <SidebarMenuButton disabled tooltip="Seguimiento Tareas (Próximamente)"> {/* Placeholder */}
                                 <ClipboardList />
-                                Seguimiento Tareas
+                                <span>Seguimiento Tareas</span>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                     </SidebarMenu>
@@ -214,7 +215,7 @@ export default function ProjectDashboardPage() {
                 <div className="container mx-auto p-4 md:p-8 space-y-6">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                             <div className="md:hidden">
+                             <div> {/* Wrapper for SidebarTrigger, now visible on all sizes */}
                                  <SidebarTrigger />
                              </div>
                             <h1 className="text-3xl font-bold">{project.projectName}</h1>
