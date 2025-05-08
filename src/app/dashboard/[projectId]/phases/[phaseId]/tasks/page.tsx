@@ -31,7 +31,7 @@ export default function PhaseTasksPage() {
     const params = useParams();
     const router = useRouter();
     const projectId = params.projectId as string;
-    const phaseUUID = params.phaseUUID as string; // Get the UUID from the route
+    const phaseId = params.phaseId as string;
     const { toast } = useToast();
 
     const [phaseDetails, setPhaseDetails] = useState<InitialPlanPhase | null>(null); // Store phase details
@@ -43,8 +43,8 @@ export default function PhaseTasksPage() {
 
     // Fetch phase details and tasks
     const fetchPhaseData = useCallback(async () => {
-        if (!projectId || !phaseUUID) return;
-        console.log(`Fetching data for projectId: ${projectId}, phaseUUID: ${phaseUUID}`);
+        if (!projectId || !phaseId) return;
+        console.log(`Fetching data for projectId: ${projectId}, phaseId: ${phaseId}`);
         setIsLoading(true);
         setError(null);
         try {
@@ -67,7 +67,7 @@ export default function PhaseTasksPage() {
             console.log("Fetched initial plan data:", planData);
 
             // Find the specific phase within the fetched plan using phaseUUID
-            const foundPhase = planData.initialPlan?.phases?.find((p: InitialPlanPhase) => p.phaseId === phaseUUID);
+            const foundPhase = planData.initialPlan?.phases?.find((p: InitialPlanPhase) => p.phaseId === phaseId);
             console.log("Found phase:", foundPhase);
 
             if (foundPhase) {
@@ -75,7 +75,7 @@ export default function PhaseTasksPage() {
                 setTasks(foundPhase.tasks || []); // Set tasks from fetched phase data
             } else {
                 // Phase not found within the plan
-                throw new Error(`Fase con UUID ${phaseUUID} no encontrada en la planificación del proyecto ${projectId}`);
+                throw new Error(`Fase con UUID ${phaseId} no encontrada en la planificación del proyecto ${projectId}`);
             }
 
         } catch (err: any) {
@@ -92,7 +92,7 @@ export default function PhaseTasksPage() {
             setIsLoading(false);
             console.log("Finished fetching phase data.");
         }
-    }, [projectId, phaseUUID, toast]);
+    }, [projectId, phaseId, toast]);
 
 
     useEffect(() => {
@@ -219,7 +219,7 @@ export default function PhaseTasksPage() {
                         </DialogHeader>
                         <TaskForm
                             projectId={projectId}
-                            phaseUUID={phaseUUID}
+                            phaseUUID={phaseId}
                             existingTask={editingTask} // Pass task if editing, null if adding
                             onTaskSaved={handleTaskSaved}
                             onCancel={handleFormClose}

@@ -202,7 +202,7 @@ export default function ProjectDashboardPage() {
                                         variant="outline"
                                         className="w-full justify-start"
                                          // Navigate using the phase's UUID
-                                         onClick={() => router.push(`/dashboard/${projectId}/phases/${phase.phaseId}`)}
+                                         onClick={() => router.push(`/dashboard/${projectId}/phases/${phase.phaseId}/tasks`)}
                                     >
                                         {phase.phaseName} ({phase.estimatedDuration} días - {(phase.estimatedCost ?? 0).toLocaleString()} {project.currency})
                                     </Button>
