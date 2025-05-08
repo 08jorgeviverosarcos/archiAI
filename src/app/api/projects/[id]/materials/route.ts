@@ -9,7 +9,7 @@ import mongoose from 'mongoose';
 import { z } from 'zod';
 
 interface Params {
-  projectId: string;
+  id: string;
 }
 
 const materialProjectCreateSchema = z.object({
@@ -26,7 +26,7 @@ const materialProjectCreateSchema = z.object({
 
 // GET all materials for a specific project
 export async function GET(request: Request, { params }: { params: Params }) {
-  const { projectId } = params;
+  const { id: projectId } = params;
 
   if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) {
     return new NextResponse(JSON.stringify({ message: 'Invalid Project ID format' }), {
@@ -52,7 +52,7 @@ export async function GET(request: Request, { params }: { params: Params }) {
 
 // POST a new material to a specific project
 export async function POST(request: Request, { params }: { params: Params }) {
-  const { projectId } = params;
+  const { id: projectId } = params;
 
   if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) {
     return new NextResponse(JSON.stringify({ message: 'Invalid Project ID format' }), {
