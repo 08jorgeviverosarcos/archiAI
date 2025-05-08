@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Task } from '@/types';
+import type { Task } from '@/types'; // Use type alias
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -43,23 +43,18 @@ const taskFormSchema = z.object({
   executionPercentage: z.number().min(0).max(100).optional().nullable(), // Optional (0-100), allow null
   startDate: z.date().optional().nullable(), // Optional date, allow null
   endDate: z.date().optional().nullable(), // Optional date, allow null
-  // projectId and phaseUUID will be passed as props, not part of the form fields
-  // estimatedCost is calculated
 }).refine(data => {
-    // Optional: Add validation if end date must be after start date
     if (data.startDate && data.endDate) {
-        // Ensure dates are valid Date objects before comparison
         if (data.startDate instanceof Date && !isNaN(data.startDate.getTime()) &&
             data.endDate instanceof Date && !isNaN(data.endDate.getTime())) {
             return data.endDate >= data.startDate;
         }
-        // If dates are not valid Date objects at this point, bypass validation
         return true;
     }
     return true;
 }, {
     message: "La fecha de finalización debe ser posterior o igual a la fecha de inicio.",
-    path: ["endDate"], // Point the error to the endDate field
+    path: ["endDate"],
 });
 
 
@@ -68,9 +63,9 @@ type TaskFormData = z.infer<typeof taskFormSchema>;
 interface TaskFormProps {
   projectId: string;
   phaseUUID: string;
-  existingTask?: Task | null; // Task object if editing, null/undefined if creating
-  onTaskSaved: (task: Task) => void; // Callback when task is successfully saved
-  onCancel: () => void; // Callback for closing the form
+  existingTask?: Task | null;
+  onTaskSaved: (task: Task) => void;
+  onCancel: () => void;
 }
 
 export const TaskForm: React.FC<TaskFormProps> = ({
@@ -91,18 +86,16 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       quantity: existingTask?.quantity ?? 1,
       unitOfMeasure: existingTask?.unitOfMeasure ?? '',
       unitPrice: existingTask?.unitPrice ?? 0,
-      estimatedDuration: existingTask?.estimatedDuration ?? null, // Default to null
+      estimatedDuration: existingTask?.estimatedDuration ?? null,
       status: existingTask?.status ?? 'Pendiente',
-      profitMargin: existingTask?.profitMargin ?? null, // Default to null
-      laborCost: existingTask?.laborCost ?? null, // Default to null
-      executionPercentage: existingTask?.executionPercentage ?? null, // Default to null
-      // Initialize dates correctly, ensuring they are Date objects if present
+      profitMargin: existingTask?.profitMargin ?? null,
+      laborCost: existingTask?.laborCost ?? null,
+      executionPercentage: existingTask?.executionPercentage ?? null,
        startDate: existingTask?.startDate ? (new Date(existingTask.startDate) instanceof Date && !isNaN(new Date(existingTask.startDate).getTime()) ? new Date(existingTask.startDate) : null) : null,
        endDate: existingTask?.endDate ? (new Date(existingTask.endDate) instanceof Date && !isNaN(new Date(existingTask.endDate).getTime()) ? new Date(existingTask.endDate) : null) : null,
     },
   });
 
-   // Reset form if existingTask changes (e.g., switching between edit/add)
    useEffect(() => {
        form.reset({
             title: existingTask?.title ?? '',
@@ -110,11 +103,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             quantity: existingTask?.quantity ?? 1,
             unitOfMeasure: existingTask?.unitOfMeasure ?? '',
             unitPrice: existingTask?.unitPrice ?? 0,
-            estimatedDuration: existingTask?.estimatedDuration ?? null, // Reset to null
+            estimatedDuration: existingTask?.estimatedDuration ?? null,
             status: existingTask?.status ?? 'Pendiente',
-            profitMargin: existingTask?.profitMargin ?? null, // Reset to null
-            laborCost: existingTask?.laborCost ?? null, // Reset to null
-            executionPercentage: existingTask?.executionPercentage ?? null, // Reset to null
+            profitMargin: existingTask?.profitMargin ?? null,
+            laborCost: existingTask?.laborCost ?? null,
+            executionPercentage: existingTask?.executionPercentage ?? null,
              startDate: existingTask?.startDate ? (new Date(existingTask.startDate) instanceof Date && !isNaN(new Date(existingTask.startDate).getTime()) ? new Date(existingTask.startDate) : null) : null,
              endDate: existingTask?.endDate ? (new Date(existingTask.endDate) instanceof Date && !isNaN(new Date(existingTask.endDate).getTime()) ? new Date(existingTask.endDate) : null) : null,
        });
@@ -122,26 +115,33 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
   const onSubmit = async (data: TaskFormData) => {
     setIsSubmitting(true);
-    console.log("Submitting task form...", data); // Add log
+    console.log("Submitting task form data:", data);
     try {
       const url = existingTask?._id ? `/api/tasks/${existingTask._id}` : '/api/tasks';
       const method = existingTask?._id ? 'PUT' : 'POST';
 
-      // Prepare payload, ensuring dates are handled correctly (pass as ISO strings or Date objects depending on API)
-      // Make sure null values are passed correctly for optional fields
-      const payload = {
-        ...data,
+      // Base payload with common fields
+      const basePayload: any = {
+        ...data, // Contains all validated form fields
         profitMargin: data.profitMargin === undefined || data.profitMargin === null ? null : data.profitMargin,
         laborCost: data.laborCost === undefined || data.laborCost === null ? null : data.laborCost,
         estimatedDuration: data.estimatedDuration === undefined || data.estimatedDuration === null ? null : data.estimatedDuration,
         executionPercentage: data.executionPercentage === undefined || data.executionPercentage === null ? null : data.executionPercentage,
-        startDate: data.startDate || null, // Pass null if undefined/null
-        endDate: data.endDate || null, // Pass null if undefined/null
-        projectId: projectId, // Add projectId
-        phaseUUID: phaseUUID, // Add phaseUUID
+        startDate: data.startDate || null,
+        endDate: data.endDate || null,
       };
 
-      console.log("Sending task payload:", payload);
+      // Conditionally add projectId and phaseUUID for POST requests only
+      const payload = existingTask?._id
+        ? basePayload // For PUT, only send fields defined in taskUpdateSchema
+        : { // For POST, include projectId and phaseUUID
+            ...basePayload,
+            projectId: projectId,
+            phaseUUID: phaseUUID,
+          };
+
+
+      console.log("Sending task payload:", payload, "to URL:", url, "with method:", method);
 
       const response = await fetch(url, {
         method: method,
@@ -152,30 +152,25 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       if (!response.ok) {
         let errorMsg = `Fallo al ${existingTask ? 'actualizar' : 'crear'} la tarea`;
         let errorDetails = '';
-        // Read the response body as text first
         const errorText = await response.text();
         console.error('API Error Response (Raw Text):', errorText);
         try {
-          // Try parsing the text as JSON
           const errorData = JSON.parse(errorText);
           errorMsg = errorData.message || errorMsg;
-          errorDetails = JSON.stringify(errorData.errors || errorData); // Get more details if available
+          errorDetails = JSON.stringify(errorData.errors || errorData);
           console.error('API Error Response (Parsed JSON):', errorData);
         } catch(e) {
-          // If JSON parsing fails, use the raw text (or part of it)
-          errorDetails = errorText.substring(0, 200) + '...'; // Limit length
+          errorDetails = errorText.substring(0, 200) + '...';
         }
          throw new Error(`${errorMsg}. Details: ${errorDetails}`);
       }
 
       const savedTaskResponse = await response.json();
       console.log("Task saved successfully:", savedTaskResponse);
-      // Check if the response has the task nested within a 'task' property
        if (savedTaskResponse && savedTaskResponse.task) {
-            onTaskSaved(savedTaskResponse.task); // Pass the nested task data
+            onTaskSaved(savedTaskResponse.task);
        } else {
             console.warn("Task data not found in expected structure in response:", savedTaskResponse);
-             // Attempt to pass the whole response if it looks like a task object
             onTaskSaved(savedTaskResponse);
        }
 
@@ -194,9 +189,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
   return (
     <Form {...form}>
-       {/* Wrap form content in ScrollArea */}
-      <ScrollArea className="flex-grow overflow-y-auto pr-6"> {/* Added pr-6 for scrollbar spacing */}
-         {/* Give the form an ID */}
+      <ScrollArea className="flex-grow overflow-y-auto pr-6">
         <form id="task-form-id" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <FormField
             control={form.control}
@@ -276,7 +269,6 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                       <FormItem>
                       <FormLabel>Costo Mano Obra (Opc)</FormLabel>
                       <FormControl>
-                           {/* Handle empty string to pass null */}
                            <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''}/>
                       </FormControl>
                       <FormMessage />
@@ -290,7 +282,6 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                       <FormItem>
                       <FormLabel>% Utilidad (Opc)</FormLabel>
                       <FormControl>
-                           {/* Handle empty string to pass null */}
                            <Input type="number" step="0.1" placeholder="Ej. 10" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''}/>
                       </FormControl>
                       <FormMessage />
@@ -339,7 +330,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                   control={form.control}
                   name="startDate"
                   render={({ field }) => (
-                    <FormItem className="flex flex-col pt-2"> {/* Add pt-2 for better alignment */}
+                    <FormItem className="flex flex-col pt-2">
                       <FormLabel>Fecha de Inicio (Opc)</FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
@@ -347,12 +338,12 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                             <Button
                               variant={"outline"}
                               className={cn(
-                                "w-full pl-3 text-left font-normal", // Ensure full width
+                                "w-full pl-3 text-left font-normal",
                                 !field.value && "text-muted-foreground"
                               )}
                             >
                               {field.value ? (
-                                format(field.value, "PPP", { locale: es }) // Use Spanish locale
+                                format(field.value, "PPP", { locale: es })
                               ) : (
                                 <span>Seleccionar fecha</span>
                               )}
@@ -363,11 +354,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                         <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
-                             selected={field.value ?? undefined} // Pass undefined if null
-                            onSelect={(date) => field.onChange(date || null)} // Update state on select, pass null if date is undefined
+                             selected={field.value ?? undefined}
+                            onSelect={(date) => field.onChange(date || null)}
                             disabled={(date) =>
-                              // Optional: Disable past dates if needed
-                              // date < new Date() || date < new Date("1900-01-01")
                               false
                             }
                             initialFocus
@@ -382,7 +371,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                   control={form.control}
                   name="endDate"
                   render={({ field }) => (
-                    <FormItem className="flex flex-col pt-2"> {/* Add pt-2 for better alignment */}
+                    <FormItem className="flex flex-col pt-2">
                       <FormLabel>Fecha de Fin (Opc)</FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
@@ -390,12 +379,12 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                             <Button
                               variant={"outline"}
                               className={cn(
-                                "w-full pl-3 text-left font-normal", // Ensure full width
+                                "w-full pl-3 text-left font-normal",
                                 !field.value && "text-muted-foreground"
                               )}
                             >
                               {field.value ? (
-                                format(field.value, "PPP", { locale: es }) // Use Spanish locale
+                                format(field.value, "PPP", { locale: es })
                               ) : (
                                 <span>Seleccionar fecha</span>
                               )}
@@ -406,10 +395,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                         <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
-                            selected={field.value ?? undefined} // Pass undefined if null
-                             onSelect={(date) => field.onChange(date || null)} // Update state on select, pass null if date is undefined
+                            selected={field.value ?? undefined}
+                             onSelect={(date) => field.onChange(date || null)}
                             disabled={(date) => {
-                               // Ensure getValues("startDate") exists and is a valid Date before comparison
                                 const startDateValue = form.getValues("startDate");
                                 const validStartDate = startDateValue instanceof Date && !isNaN(startDateValue.getTime());
                                 return (validStartDate && date < startDateValue!) || false;
@@ -424,41 +412,32 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 />
           </div>
 
-          {/* Execution Percentage Slider */}
           <FormField
               control={form.control}
               name="executionPercentage"
-              render={({ field: { value, onChange } }) => ( // Destructure value and onChange
+              render={({ field: { value, onChange } }) => (
                 <FormItem>
-                   {/* Display the current percentage, default to 0 if null/undefined */}
                   <FormLabel>Porcentaje de Ejecución ({value ?? 0}%)</FormLabel>
                    <FormControl>
                     <Slider
-                      // Use value directly from field, default to 0 if null/undefined
                       value={[value ?? 0]}
-                      // Update form field value on change
                        onValueChange={(vals) => onChange(vals[0])}
                       max={100}
                       step={1}
-                      className="py-2" // Add some padding
+                      className="py-2"
                     />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
            />
-
-
-          {/* Form actions are outside ScrollArea in the DialogFooter */}
         </form>
       </ScrollArea>
 
-      {/* Form actions moved outside ScrollArea */}
-       <div className="flex justify-end space-x-2 pt-4 border-t mt-4"> {/* Added border-t and mt-4 */}
+       <div className="flex justify-end space-x-2 pt-4 border-t mt-4">
             <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Cancelar
             </Button>
-             {/* Trigger form submission using form ID */}
             <Button type="submit" form="task-form-id" disabled={isSubmitting}>
                 {isSubmitting ? (
                     <>
