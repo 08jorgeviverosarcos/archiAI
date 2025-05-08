@@ -3,14 +3,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, PlusCircle, Trash2, Edit } from 'lucide-react';
+import { ArrowLeft, Loader2, PlusCircle, Trash2, Edit, PackagePlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { InitialPlanPhase, Task } from '@/types'; // Use type alias
 import {
     Card,
     CardContent,
     CardDescription,
-    CardFooter,
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
@@ -23,39 +22,39 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { TaskForm } from '@/components/TaskForm'; // Import the TaskForm component
+import { TaskForm } from '@/components/TaskForm';
+import { AssignMaterialToTaskDialog } from '@/components/AssignMaterialToTaskDialog'; // Import the new dialog
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Progress } from '@/components/ui/progress'; // Import Progress component
+import { Progress } from '@/components/ui/progress';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale'; // Import Spanish locale for date formatting
+import { es } from 'date-fns/locale';
+import { Toaster } from '@/components/ui/toaster';
 
 
-// Rename phaseId to phaseUUID to match the route parameter name and logic
 export default function PhaseTasksPage() {
     const params = useParams();
     const router = useRouter();
     const projectId = params.projectId as string;
-    const phaseId = params.phaseId as string; // Get the UUID from the route (this is phaseUUID)
+    const phaseId = params.phaseId as string;
     const { toast } = useToast();
 
-    const [phaseDetails, setPhaseDetails] = useState<InitialPlanPhase | null>(null); // Store phase details
+    const [phaseDetails, setPhaseDetails] = useState<InitialPlanPhase | null>(null);
     const [tasks, setTasks] = useState<Task[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isFormOpen, setIsFormOpen] = useState(false); // State for the add/edit task dialog
-    const [editingTask, setEditingTask] = useState<Task | null>(null); // State for the task being edited
+    const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
+    const [editingTask, setEditingTask] = useState<Task | null>(null);
 
-    // Fetch phase details and tasks
+    const [selectedTaskForMaterials, setSelectedTaskForMaterials] = useState<Task | null>(null);
+    const [isAssignMaterialDialogOpen, setIsAssignMaterialDialogOpen] = useState(false);
+
     const fetchPhaseData = useCallback(async () => {
         if (!projectId || !phaseId) return;
         console.log(`Fetching data for projectId: ${projectId}, phaseId (phaseUUID): ${phaseId}`);
         setIsLoading(true);
         setError(null);
         try {
-            // 1. Fetch InitialPlan directly using projectId to find the phase details by UUID
-            console.log(`Fetching initial plan for project ID: ${projectId}`);
-            const planRes = await fetch(`/api/initial-plans/${projectId}`); // Fetch plan by projectId
-            console.log(`Initial plan fetch status: ${planRes.status}`);
+            const planRes = await fetch(`/api/initial-plans/${projectId}`);
             if (!planRes.ok) {
                 if (planRes.status === 404) {
                     const projectRes = await fetch(`/api/projects/${projectId}`);
@@ -73,14 +72,12 @@ export default function PhaseTasksPage() {
                 throw new Error(errorMsg);
             }
             const planData = await planRes.json();
-            console.log("Fetched initial plan data:", planData);
 
             if (!planData.initialPlan || !Array.isArray(planData.initialPlan.phases)) {
                 throw new Error("La estructura de la planificación inicial es inválida o no contiene fases.");
             }
 
             const foundPhase = planData.initialPlan.phases.find((p: InitialPlanPhase) => p.phaseId === phaseId);
-            console.log("Found phase:", foundPhase);
 
             if (foundPhase) {
                 setPhaseDetails(foundPhase);
@@ -88,9 +85,7 @@ export default function PhaseTasksPage() {
                 throw new Error(`Fase con UUID ${phaseId} no encontrada en la planificación del proyecto ${projectId}`);
             }
 
-             console.log(`Fetching tasks for project ${projectId}, phase UUID: ${phaseId}`);
              const tasksRes = await fetch(`/api/tasks?projectId=${projectId}&phaseUUID=${phaseId}`);
-             console.log(`Tasks fetch status: ${tasksRes.status}`);
              if (!tasksRes.ok) {
                 let errorMsg = "Fallo al cargar las tareas.";
                 try {
@@ -100,10 +95,7 @@ export default function PhaseTasksPage() {
                  throw new Error(errorMsg);
              }
              const tasksData = await tasksRes.json();
-             console.log("Fetched tasks data via dedicated endpoint:", tasksData);
              setTasks(tasksData.tasks || []);
-
-
         } catch (err: any) {
             console.error("Error loading phase tasks page:", err);
             setError(`${err.message}`);
@@ -116,10 +108,8 @@ export default function PhaseTasksPage() {
             });
         } finally {
             setIsLoading(false);
-            console.log("Finished fetching phase data.");
         }
     }, [projectId, phaseId, toast]);
-
 
     useEffect(() => {
         fetchPhaseData();
@@ -127,36 +117,34 @@ export default function PhaseTasksPage() {
 
     const handleAddTask = () => {
         setEditingTask(null);
-        setIsFormOpen(true);
+        setIsTaskFormOpen(true);
     };
 
     const handleEditTask = (task: Task) => {
         setEditingTask(task);
-        setIsFormOpen(true);
+        setIsTaskFormOpen(true);
     };
 
-     const handleFormClose = () => {
-         setIsFormOpen(false);
+    const handleTaskFormClose = () => {
+         setIsTaskFormOpen(false);
          setEditingTask(null);
-     };
+    };
 
     const handleTaskSaved = (savedTask: Task) => {
         fetchPhaseData(); 
-        handleFormClose(); 
+        handleTaskFormClose(); 
         toast({
           title: editingTask ? 'Tarea Actualizada' : 'Tarea Creada',
           description: `La tarea "${savedTask.title}" ha sido guardada exitosamente.`,
         });
     };
 
-     const handleDeleteTask = async (taskId: string) => {
+    const handleDeleteTask = async (taskId: string) => {
         if (!taskId) return;
-
         try {
             const response = await fetch(`/api/tasks/${taskId}`, {
                 method: 'DELETE',
             });
-
             if (!response.ok) {
                 let errorMsg = 'Failed to delete task';
                 try {
@@ -165,7 +153,6 @@ export default function PhaseTasksPage() {
                 } catch(e) {/* ignore */}
                 throw new Error(errorMsg);
             }
-
             toast({
                 title: 'Tarea Eliminada',
                 description: 'La tarea ha sido eliminada exitosamente.',
@@ -179,8 +166,18 @@ export default function PhaseTasksPage() {
                 description: `No se pudo eliminar la tarea: ${err.message}`,
             });
         }
-     };
+    };
 
+    const openAssignMaterialDialog = (task: Task) => {
+        setSelectedTaskForMaterials(task);
+        setIsAssignMaterialDialogOpen(true);
+    };
+
+    const closeAssignMaterialDialog = () => {
+        setSelectedTaskForMaterials(null);
+        setIsAssignMaterialDialogOpen(false);
+        fetchPhaseData(); // Refetch tasks as materials might influence summaries or views
+    };
 
     if (isLoading) {
         return (
@@ -191,7 +188,7 @@ export default function PhaseTasksPage() {
         );
     }
 
-     if (error) {
+    if (error) {
         return (
             <div className="container mx-auto p-4 md:p-8 text-center">
                  <p className="text-destructive mb-4">{error}</p>
@@ -213,7 +210,6 @@ export default function PhaseTasksPage() {
         );
     }
 
-
     return (
         <div className="container mx-auto p-4 md:p-8 space-y-6">
              <div className="flex justify-between items-center mb-4">
@@ -224,13 +220,13 @@ export default function PhaseTasksPage() {
                      <h1 className="text-2xl font-bold">Gestión de Tareas: {phaseDetails.phaseName}</h1>
                      <p className="text-muted-foreground">Administra las tareas específicas para completar esta fase.</p>
                  </div>
-                 <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+                 <Dialog open={isTaskFormOpen} onOpenChange={setIsTaskFormOpen}>
                     <DialogTrigger asChild>
                          <Button onClick={handleAddTask}>
                              <PlusCircle className="mr-2 h-4 w-4" /> Agregar Tarea
                          </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[750px] max-h-[90vh] flex flex-col overflow-hidden">
+                    <DialogContent className="sm:max-w-[750px] max-h-[90vh] flex flex-col">
                         <DialogHeader>
                             <DialogTitle>{editingTask ? 'Editar Tarea' : 'Agregar Nueva Tarea'}</DialogTitle>
                         </DialogHeader>
@@ -239,7 +235,7 @@ export default function PhaseTasksPage() {
                             phaseUUID={phaseId} 
                             existingTask={editingTask}
                             onTaskSaved={handleTaskSaved}
-                            onCancel={handleFormClose}
+                            onCancel={handleTaskFormClose}
                          />
                     </DialogContent>
                 </Dialog>
@@ -262,6 +258,7 @@ export default function PhaseTasksPage() {
                                     <TableHead className="text-center">Inicio</TableHead>
                                     <TableHead className="text-center">Fin</TableHead>
                                     <TableHead className="text-right">Costo Est.</TableHead>
+                                    <TableHead>Materiales</TableHead>
                                     <TableHead className="text-right">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -294,6 +291,11 @@ export default function PhaseTasksPage() {
                                              {task.endDate ? format(new Date(task.endDate), 'dd/MM/yy', { locale: es }) : '-'}
                                           </TableCell>
                                         <TableCell className="text-right">{task.estimatedCost.toLocaleString()}</TableCell>
+                                        <TableCell>
+                                            <Button variant="outline" size="sm" onClick={() => openAssignMaterialDialog(task)}>
+                                                <PackagePlus className="h-4 w-4 mr-1" /> Asignar
+                                            </Button>
+                                        </TableCell>
                                         <TableCell className="text-right space-x-1">
                                              <Button variant="ghost" size="icon" onClick={() => handleEditTask(task)}>
                                                  <Edit className="h-4 w-4" />
@@ -320,7 +322,16 @@ export default function PhaseTasksPage() {
                     )}
                 </CardContent>
             </Card>
-
+            <Toaster />
+            {selectedTaskForMaterials && (
+                <AssignMaterialToTaskDialog
+                    taskId={selectedTaskForMaterials._id!}
+                    projectId={projectId}
+                    isOpen={isAssignMaterialDialogOpen}
+                    onClose={closeAssignMaterialDialog}
+                    onMaterialsUpdated={fetchPhaseData} // To refresh task list if needed
+                />
+            )}
         </div>
     );
 }
