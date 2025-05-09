@@ -1,3 +1,4 @@
+
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -10,12 +11,18 @@ interface Params {
     taskId: string;
 }
 
+const unitsOfMeasure = [
+  'm', 'm²', 'm³', 'kg', 'L', 'gal', 'unidad', 'caja', 'rollo', 'bolsa', 'hr', 'día', 'semana', 'mes', 'global', 'pulg', 'pie', 'yd', 'ton', 'lb'
+] as const;
+
 // Schema for validating PUT request body (updated for new fields)
 const taskUpdateSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional().nullable(), // Allow explicitly setting to null
   quantity: z.number().min(0).optional(),
-  unitOfMeasure: z.string().min(1).optional(),
+  unitOfMeasure: z.enum(unitsOfMeasure, {
+    errorMap: () => ({ message: "La unidad de medida es inválida." }),
+  }).optional(),
   unitPrice: z.number().min(0).optional(),
   estimatedDuration: z.number().min(0).optional().nullable(), // Optional duration, allow null
   status: z.enum(['Pendiente', 'En Progreso', 'Realizado']).optional(),
@@ -216,4 +223,3 @@ export async function DELETE(req: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
-

@@ -12,13 +12,19 @@ interface Params {
   id: string;
 }
 
+const unitsOfMeasure = [
+  'm', 'm²', 'm³', 'kg', 'L', 'gal', 'unidad', 'caja', 'rollo', 'bolsa', 'hr', 'día', 'semana', 'mes', 'global', 'pulg', 'pie', 'yd', 'ton', 'lb'
+] as const;
+
 const materialProjectCreateSchema = z.object({
   title: z.string().min(1, "El título es requerido"),
   referenceCode: z.string().min(1, "Reference code is required"),
   brand: z.string().min(1, "Brand is required"),
   supplier: z.string().min(1, "Supplier is required"),
   description: z.string().min(1, "Description is required"),
-  unitOfMeasure: z.string().min(1, "Unit of measure is required"),
+  unitOfMeasure: z.enum(unitsOfMeasure, {
+    required_error: "La unidad de medida es requerida.",
+  }),
   estimatedUnitPrice: z.number().min(0, "Estimated unit price must be non-negative").default(0),
   profitMargin: z.number().min(0).optional().nullable().default(null), // Allow null, default to null
 });

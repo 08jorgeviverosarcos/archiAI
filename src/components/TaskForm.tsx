@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -29,12 +30,18 @@ import { es } from 'date-fns/locale'; // Import Spanish locale for date formatti
 import { Slider } from '@/components/ui/slider'; // Import Slider
 import { ScrollArea } from '@/components/ui/scroll-area'; // Import ScrollArea
 
+const unitsOfMeasure = [
+  'm', 'm²', 'm³', 'kg', 'L', 'gal', 'unidad', 'caja', 'rollo', 'bolsa', 'hr', 'día', 'semana', 'mes', 'global', 'pulg', 'pie', 'yd', 'ton', 'lb'
+] as const;
+
 // Zod schema for task validation - updated with new fields
 const taskFormSchema = z.object({
   title: z.string().min(1, "El título es requerido"),
   description: z.string().optional(),
   quantity: z.number().min(0, "La cantidad debe ser positiva").default(1),
-  unitOfMeasure: z.string().min(1, "La unidad de medida es requerida"),
+  unitOfMeasure: z.enum(unitsOfMeasure, {
+    required_error: "La unidad de medida es requerida.",
+  }),
   unitPrice: z.number().min(0, "El precio unitario debe ser positivo").default(0),
   estimatedDuration: z.number().min(0, "La duración debe ser positiva").optional().nullable(), // Optional, allow null
   status: z.enum(['Pendiente', 'En Progreso', 'Realizado']).default('Pendiente'),
@@ -84,7 +91,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       title: existingTask?.title ?? '',
       description: existingTask?.description ?? '',
       quantity: existingTask?.quantity ?? 1,
-      unitOfMeasure: existingTask?.unitOfMeasure ?? '',
+      unitOfMeasure: existingTask?.unitOfMeasure ? unitsOfMeasure.find(u => u === existingTask.unitOfMeasure) : undefined,
       unitPrice: existingTask?.unitPrice ?? 0,
       estimatedDuration: existingTask?.estimatedDuration ?? null,
       status: existingTask?.status ?? 'Pendiente',
@@ -101,7 +108,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             title: existingTask?.title ?? '',
             description: existingTask?.description ?? '',
             quantity: existingTask?.quantity ?? 1,
-            unitOfMeasure: existingTask?.unitOfMeasure ?? '',
+            unitOfMeasure: existingTask?.unitOfMeasure ? unitsOfMeasure.find(u => u === existingTask.unitOfMeasure) : undefined,
             unitPrice: existingTask?.unitPrice ?? 0,
             estimatedDuration: existingTask?.estimatedDuration ?? null,
             status: existingTask?.status ?? 'Pendiente',
@@ -151,18 +158,25 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
       if (!response.ok) {
         let errorMsg = `Fallo al ${existingTask ? 'actualizar' : 'crear'} la tarea`;
-        let errorDetails = '';
+        // Read the response body as text first
         const errorText = await response.text();
         console.error('API Error Response (Raw Text):', errorText);
         try {
+          // Try parsing the text as JSON
           const errorData = JSON.parse(errorText);
           errorMsg = errorData.message || errorMsg;
-          errorDetails = JSON.stringify(errorData.errors || errorData);
+          // Log specific Zod errors if present
+          if (errorData.errors) {
+            console.error('Zod Validation Errors:', errorData.errors);
+            errorMsg += ` Detalles: ${JSON.stringify(errorData.errors)}`;
+          }
           console.error('API Error Response (Parsed JSON):', errorData);
         } catch(e) {
-          errorDetails = errorText.substring(0, 200) + '...';
+          // If JSON parsing fails, use the raw text
+          console.error('Failed to parse API error response as JSON:', e);
+          errorMsg += `: ${errorText.substring(0, 200)}...`; // Show a snippet
         }
-         throw new Error(`${errorMsg}. Details: ${errorDetails}`);
+         throw new Error(errorMsg);
       }
 
       const savedTaskResponse = await response.json();
@@ -171,7 +185,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             onTaskSaved(savedTaskResponse.task);
        } else {
             console.warn("Task data not found in expected structure in response:", savedTaskResponse);
-            onTaskSaved(savedTaskResponse);
+            onTaskSaved(savedTaskResponse); // Fallback, might need adjustment based on actual response
        }
 
 
@@ -189,7 +203,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
   return (
     <Form {...form}>
-      <ScrollArea className="flex-grow overflow-y-auto pr-6">
+      <ScrollArea className="flex-grow overflow-y-auto pr-6 max-h-[calc(90vh-200px)]"> {/* Adjusted max height */}
         <form id="task-form-id" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <FormField
             control={form.control}
@@ -239,9 +253,18 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Unidad Medida</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ej. m², und, kg" {...field} />
-                    </FormControl>
+                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                            <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar unidad" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            {unitsOfMeasure.map(unit => (
+                            <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -357,7 +380,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                              selected={field.value ?? undefined}
                             onSelect={(date) => field.onChange(date || null)}
                             disabled={(date) =>
-                              false
+                              false // No specific disabling logic here, can be added if needed
                             }
                             initialFocus
                           />
@@ -399,8 +422,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                              onSelect={(date) => field.onChange(date || null)}
                             disabled={(date) => {
                                 const startDateValue = form.getValues("startDate");
+                                // Ensure startDateValue is a valid date before comparison
                                 const validStartDate = startDateValue instanceof Date && !isNaN(startDateValue.getTime());
-                                return (validStartDate && date < startDateValue!) || false;
+                                return (validStartDate && date < startDateValue!) || false; // Disable dates before start date
                             }}
                             initialFocus
                           />
@@ -420,11 +444,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                   <FormLabel>Porcentaje de Ejecución ({value ?? 0}%)</FormLabel>
                    <FormControl>
                     <Slider
-                      value={[value ?? 0]}
-                       onValueChange={(vals) => onChange(vals[0])}
+                      value={[value ?? 0]} // Slider expects an array
+                       onValueChange={(vals) => onChange(vals[0])} // Take the first value from the array
                       max={100}
                       step={1}
-                      className="py-2"
+                      className="py-2" // Add some padding for better visual
                     />
                   </FormControl>
                   <FormMessage />
@@ -434,7 +458,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         </form>
       </ScrollArea>
 
-       <div className="flex justify-end space-x-2 pt-4 border-t mt-4">
+       <div className="flex justify-end space-x-2 pt-4 border-t mt-auto"> {/* Ensure this is outside ScrollArea or handled by DialogFooter */}
             <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Cancelar
             </Button>

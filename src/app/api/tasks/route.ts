@@ -1,3 +1,4 @@
+
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -6,6 +7,10 @@ import connectDB from '@/lib/db'; // Import db connection utility
 import mongoose from 'mongoose';
 import { z } from 'zod';
 
+const unitsOfMeasure = [
+  'm', 'm²', 'm³', 'kg', 'L', 'gal', 'unidad', 'caja', 'rollo', 'bolsa', 'hr', 'día', 'semana', 'mes', 'global', 'pulg', 'pie', 'yd', 'ton', 'lb'
+] as const;
+
 // Schema for validating POST request body - updated with new fields
 const taskCreateSchema = z.object({
   projectId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), { message: "Invalid Project ID" }),
@@ -13,7 +18,9 @@ const taskCreateSchema = z.object({
   title: z.string().min(1, { message: "Title is required" }),
   description: z.string().optional(),
   quantity: z.number().min(0, { message: "Quantity must be non-negative" }).default(1),
-  unitOfMeasure: z.string().min(1, { message: "Unit of measure is required" }),
+  unitOfMeasure: z.enum(unitsOfMeasure, {
+    required_error: "La unidad de medida es requerida.",
+  }),
   unitPrice: z.number().min(0, { message: "Unit price must be non-negative" }).default(0),
   estimatedDuration: z.number().min(0).optional().nullable(), // Optional duration
   status: z.enum(['Pendiente', 'En Progreso', 'Realizado']).default('Pendiente'),
@@ -189,4 +196,3 @@ export async function POST(req: Request) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
-

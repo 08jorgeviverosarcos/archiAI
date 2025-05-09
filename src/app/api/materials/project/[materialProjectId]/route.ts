@@ -11,13 +11,19 @@ interface Params {
   materialProjectId: string;
 }
 
+const unitsOfMeasure = [
+  'm', 'm²', 'm³', 'kg', 'L', 'gal', 'unidad', 'caja', 'rollo', 'bolsa', 'hr', 'día', 'semana', 'mes', 'global', 'pulg', 'pie', 'yd', 'ton', 'lb'
+] as const;
+
 const materialProjectUpdateSchema = z.object({
   title: z.string().min(1, "El título es requerido").optional(),
   referenceCode: z.string().min(1, "Reference code is required").optional(),
   brand: z.string().min(1, "Brand is required").optional(),
   supplier: z.string().min(1, "Supplier is required").optional(),
   description: z.string().min(1, "Description is required").optional(),
-  unitOfMeasure: z.string().min(1, "Unit of measure is required").optional(),
+  unitOfMeasure: z.enum(unitsOfMeasure, {
+    errorMap: () => ({ message: "La unidad de medida es inválida." }),
+  }).optional(),
   estimatedUnitPrice: z.number().min(0, "Estimated unit price must be non-negative").optional(),
   profitMargin: z.number().min(0).optional().nullable(), // Allow null
 }).strict(); // Ensure no extra fields are passed

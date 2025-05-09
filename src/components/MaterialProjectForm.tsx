@@ -22,6 +22,11 @@ import {
     FormMessage,
 } from '@/components/ui/form';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+const unitsOfMeasure = [
+  'm', 'm²', 'm³', 'kg', 'L', 'gal', 'unidad', 'caja', 'rollo', 'bolsa', 'hr', 'día', 'semana', 'mes', 'global', 'pulg', 'pie', 'yd', 'ton', 'lb'
+] as const;
 
 const materialProjectFormSchema = z.object({
   title: z.string().min(1, "El título es requerido"),
@@ -29,7 +34,9 @@ const materialProjectFormSchema = z.object({
   brand: z.string().min(1, "La marca es requerida"),
   supplier: z.string().min(1, "El proveedor es requerido"),
   description: z.string().min(1, "La descripción es requerida"),
-  unitOfMeasure: z.string().min(1, "La unidad de medida es requerida"),
+  unitOfMeasure: z.enum(unitsOfMeasure, {
+    required_error: "La unidad de medida es requerida.",
+  }),
   estimatedUnitPrice: z.number().min(0, "El precio unitario estimado debe ser no negativo").default(0),
   profitMargin: z.number().min(0).optional().nullable(),
 });
@@ -60,7 +67,7 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
       brand: existingMaterial?.brand ?? '',
       supplier: existingMaterial?.supplier ?? '',
       description: existingMaterial?.description ?? '',
-      unitOfMeasure: existingMaterial?.unitOfMeasure ?? '',
+      unitOfMeasure: existingMaterial?.unitOfMeasure ? unitsOfMeasure.find(u => u === existingMaterial.unitOfMeasure) : undefined,
       estimatedUnitPrice: existingMaterial?.estimatedUnitPrice ?? 0,
       profitMargin: existingMaterial?.profitMargin ?? null,
     },
@@ -73,7 +80,7 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
         brand: existingMaterial?.brand ?? '',
         supplier: existingMaterial?.supplier ?? '',
         description: existingMaterial?.description ?? '',
-        unitOfMeasure: existingMaterial?.unitOfMeasure ?? '',
+        unitOfMeasure: existingMaterial?.unitOfMeasure ? unitsOfMeasure.find(u => u === existingMaterial.unitOfMeasure) : undefined,
         estimatedUnitPrice: existingMaterial?.estimatedUnitPrice ?? 0,
         profitMargin: existingMaterial?.profitMargin ?? null,
        });
@@ -197,9 +204,18 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
                     render={({ field }) => (
                     <FormItem>
                         <FormLabel>Unidad Medida</FormLabel>
-                        <FormControl>
-                        <Input placeholder="Ej. m², und, kg" {...field} />
-                        </FormControl>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar unidad" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {unitsOfMeasure.map(unit => (
+                                <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                         <FormMessage />
                     </FormItem>
                     )}

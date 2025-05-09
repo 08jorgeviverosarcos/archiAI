@@ -6,6 +6,10 @@ export interface ITask extends TaskType, Document {
   _id: Schema.Types.ObjectId; // Ensure _id is defined
 }
 
+const unitsOfMeasureValues = [
+  'm', 'm²', 'm³', 'kg', 'L', 'gal', 'unidad', 'caja', 'rollo', 'bolsa', 'hr', 'día', 'semana', 'mes', 'global', 'pulg', 'pie', 'yd', 'ton', 'lb'
+] as const;
+
 const taskSchema = new Schema<ITask>(
   {
     projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true, index: true },
@@ -13,7 +17,7 @@ const taskSchema = new Schema<ITask>(
     title: { type: String, required: true },
     description: { type: String },
     quantity: { type: Number, required: true, default: 1 },
-    unitOfMeasure: { type: String, required: true },
+    unitOfMeasure: { type: String, required: true, enum: unitsOfMeasureValues },
     unitPrice: { type: Number, required: true, default: 0 },
     estimatedDuration: { type: Number, default: null, required: false }, // Duration in days
     status: {
