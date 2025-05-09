@@ -1,9 +1,10 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, PackagePlus, Trash2 } from 'lucide-react';
+import { Loader2, PackagePlus, Trash2, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { MaterialTask, MaterialProject } from '@/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,19 +19,22 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 interface AssignMaterialToTaskDialogProps {
   taskId: string;
   projectId: string;
   isOpen: boolean;
   onClose: () => void;
-  onMaterialsUpdated: () => void; // Callback to refresh parent data if needed
+  onMaterialsUpdated: () => void;
 }
 
-interface MaterialTaskFormData {
-  materialProjectId: string;
+
+interface MaterialTaskEditFormData {
   quantityUsed: number;
+  profitMarginForTaskMaterial?: number | null;
 }
+
 
 export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProps> = ({
   taskId,
@@ -48,6 +52,10 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
 
   const [selectedMaterialProject, setSelectedMaterialProject] = useState<string>('');
   const [quantityUsed, setQuantityUsed] = useState<number | string>('');
+
+  const [editingMaterialTask, setEditingMaterialTask] = useState<MaterialTask | null>(null);
+  const [editFormData, setEditFormData] = useState<MaterialTaskEditFormData>({ quantityUsed: 0, profitMarginForTaskMaterial: null });
+
 
   const fetchAssignedMaterials = useCallback(async () => {
     if (!taskId) return;
@@ -89,8 +97,22 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
     if (isOpen) {
       fetchAssignedMaterials();
       fetchProjectMaterials();
+      setEditingMaterialTask(null); // Reset editing state when dialog opens
     }
   }, [isOpen, fetchAssignedMaterials, fetchProjectMaterials]);
+
+
+  useEffect(() => {
+    if (editingMaterialTask) {
+      setEditFormData({
+        quantityUsed: editingMaterialTask.quantityUsed,
+        profitMarginForTaskMaterial: editingMaterialTask.profitMarginForTaskMaterial ?? null,
+      });
+    } else {
+      setEditFormData({ quantityUsed: 0, profitMarginForTaskMaterial: null });
+    }
+  }, [editingMaterialTask]);
+
 
   const handleAddMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,9 +131,8 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to assign material');
       }
-      const newMaterialTask = await response.json();
+      await fetchAssignedMaterials(); // Refetch to get the latest list including populated fields
       toast({ title: 'Material Asignado', description: 'El material ha sido asignado a la tarea.' });
-      setAssignedMaterials(prev => [...prev, newMaterialTask.materialTask]);
       setSelectedMaterialProject('');
       setQuantityUsed('');
       onMaterialsUpdated();
@@ -122,8 +143,55 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
     }
   };
 
+  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({
+        ...prev,
+        [name]: name === 'profitMarginForTaskMaterial' ? (value === '' ? null : Number(value)) : Number(value)
+    }));
+  };
+
+  const handleSaveEditMaterialTask = async () => {
+    if (!editingMaterialTask || !editingMaterialTask._id) return;
+    if (editFormData.quantityUsed <=0) {
+        toast({ variant: 'destructive', title: 'Error de validación', description: 'La cantidad usada debe ser mayor que cero.' });
+        return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload:any = {
+        quantityUsed: editFormData.quantityUsed,
+      };
+      if (editFormData.profitMarginForTaskMaterial !== null && editFormData.profitMarginForTaskMaterial !== undefined) {
+        payload.profitMarginForTaskMaterial = editFormData.profitMarginForTaskMaterial;
+      }
+
+
+      const response = await fetch(`/api/materials/task/${editingMaterialTask._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update material task');
+      }
+      await fetchAssignedMaterials();
+      toast({ title: 'Material de Tarea Actualizado', description: 'El material de la tarea ha sido actualizado.' });
+      setEditingMaterialTask(null); // Close edit form
+      onMaterialsUpdated();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: `No se pudo actualizar el material de la tarea: ${error.message}` });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+
   const handleRemoveMaterial = async (materialTaskId: string) => {
-    setIsSubmitting(true); // You might want a different loading state for deletion
+    // Confirmation is handled by AlertDialog
+    setIsSubmitting(true);
     try {
       const response = await fetch(`/api/materials/task/${materialTaskId}`, {
         method: 'DELETE',
@@ -144,64 +212,104 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
 
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); setEditingMaterialTask(null); } }}>
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Gestionar Materiales de Tarea</DialogTitle>
           <DialogDescription>
-            Asigne o elimine materiales para esta tarea. Los materiales deben existir en el inventario general del proyecto.
+            Asigne o elimine materiales para esta tarea.
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-grow pr-6">
           <div className="space-y-6 py-4">
-            {/* Form to add new material to task */}
-            <form onSubmit={handleAddMaterial} className="space-y-4 p-4 border rounded-md">
-              <h3 className="text-lg font-medium">Asignar Nuevo Material</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-                <div className="space-y-1">
-                  <Label htmlFor="material-select">Material del Proyecto</Label>
-                  {isLoadingProjectMaterials ? (
-                    <div className="flex items-center"> <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando...</div>
-                  ) : projectMaterials.length > 0 ? (
-                    <Select value={selectedMaterialProject} onValueChange={setSelectedMaterialProject}>
-                      <SelectTrigger id="material-select">
-                        <SelectValue placeholder="Seleccionar material" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {projectMaterials.map((material) => (
-                          <SelectItem key={material._id} value={material._id!}>
-                            {material.referenceCode} - {material.description}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No hay materiales en el proyecto. <Button variant="link" size="sm" className="p-0 h-auto" onClick={() => {/* TODO: Navigate to project materials page or open a modal */} }>Agregar Materiales al Proyecto</Button></p>
-                  )}
+            {!editingMaterialTask ? (
+              <form onSubmit={handleAddMaterial} className="space-y-4 p-4 border rounded-md">
+                <h3 className="text-lg font-medium">Asignar Nuevo Material</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                  <div className="space-y-1">
+                    <Label htmlFor="material-select">Material del Proyecto</Label>
+                    {isLoadingProjectMaterials ? (
+                      <div className="flex items-center"> <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando...</div>
+                    ) : projectMaterials.length > 0 ? (
+                      <Select value={selectedMaterialProject} onValueChange={setSelectedMaterialProject}>
+                        <SelectTrigger id="material-select">
+                          <SelectValue placeholder="Seleccionar material" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {projectMaterials.map((material) => (
+                            <SelectItem key={material._id} value={material._id!}>
+                              {material.referenceCode} - {material.description} (Disp: {material.quantity} {material.unitOfMeasure})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No hay materiales en el proyecto.</p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="quantity-used">Cantidad a Usar</Label>
+                    <Input
+                      id="quantity-used"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={quantityUsed}
+                      onChange={(e) => setQuantityUsed(e.target.value)}
+                      placeholder="Ej. 10.5"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="quantity-used">Cantidad a Usar</Label>
-                  <Input
-                    id="quantity-used"
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={quantityUsed}
-                    onChange={(e) => setQuantityUsed(e.target.value)}
-                    placeholder="Ej. 10.5"
-                  />
+                <Button type="submit" disabled={isSubmitting || isLoadingProjectMaterials || projectMaterials.length === 0}>
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PackagePlus className="h-4 w-4 mr-2" />}
+                  Asignar Material
+                </Button>
+              </form>
+            ) : (
+                // Edit Form
+                <div className="space-y-4 p-4 border rounded-md">
+                    <h3 className="text-lg font-medium">Editar Material Asignado: {(editingMaterialTask.materialProjectId as any)?.referenceCode}</h3>
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="edit-quantity-used">Cantidad Usada</Label>
+                            <Input
+                                id="edit-quantity-used"
+                                name="quantityUsed"
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value={editFormData.quantityUsed}
+                                onChange={handleEditInputChange}
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="edit-profit-margin">Margen de Utilidad (%)</Label>
+                            <Input
+                                id="edit-profit-margin"
+                                name="profitMarginForTaskMaterial"
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                placeholder="Ej: 10 (para 10%)"
+                                value={editFormData.profitMarginForTaskMaterial ?? ''}
+                                onChange={handleEditInputChange}
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end space-x-2">
+                        <Button variant="outline" onClick={() => setEditingMaterialTask(null)} disabled={isSubmitting}>Cancelar Edición</Button>
+                        <Button onClick={handleSaveEditMaterialTask} disabled={isSubmitting}>
+                            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            Guardar Cambios
+                        </Button>
+                    </div>
                 </div>
-              </div>
-              <Button type="submit" disabled={isSubmitting || isLoadingProjectMaterials || projectMaterials.length === 0}>
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PackagePlus className="h-4 w-4 mr-2" />}
-                Asignar Material
-              </Button>
-            </form>
+            )}
 
-            {/* List of currently assigned materials */}
+
             <div>
-              <h3 className="text-lg font-medium mb-2">Materiales Asignados a esta Tarea</h3>
+              <h3 className="text-lg font-medium mb-2 mt-6">Materiales Asignados a esta Tarea</h3>
               {isLoadingAssigned ? (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -213,26 +321,48 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                     <TableRow>
                       <TableHead>Cód. Ref.</TableHead>
                       <TableHead>Descripción</TableHead>
-                      <TableHead className="text-right">Cantidad Usada</TableHead>
-                      <TableHead className="text-right">Acción</TableHead>
+                      <TableHead className="text-right">Cant. Usada</TableHead>
+                      <TableHead className="text-right">Costo Material</TableHead>
+                      <TableHead className="text-right">Utilidad (%)</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {assignedMaterials.map((mt) => (
                       <TableRow key={mt._id}>
                         <TableCell>{(mt.materialProjectId as any)?.referenceCode || 'N/A'}</TableCell>
-                        <TableCell>{(mt.materialProjectId as any)?.description || 'Descripción no disponible'}</TableCell>
-                        <TableCell className="text-right">{mt.quantityUsed}</TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => mt._id && handleRemoveMaterial(mt._id)}
-                            disabled={isSubmitting}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                            <span className="sr-only">Eliminar</span>
-                          </Button>
+                        <TableCell>{(mt.materialProjectId as any)?.description || 'N/A'}</TableCell>
+                        <TableCell className="text-right">{mt.quantityUsed.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">{mt.materialCostForTask?.toLocaleString() ?? 'N/A'}</TableCell>
+                        <TableCell className="text-right">{mt.profitMarginForTaskMaterial?.toLocaleString() ?? '-'}%</TableCell>
+                        <TableCell className="text-right space-x-1">
+                           <Button variant="ghost" size="icon" onClick={() => setEditingMaterialTask(mt)} disabled={isSubmitting || !!editingMaterialTask}>
+                                <Edit className="h-4 w-4" />
+                                <span className="sr-only">Editar</span>
+                           </Button>
+                           <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" disabled={isSubmitting || !!editingMaterialTask}>
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                        <span className="sr-only">Eliminar</span>
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Esta acción no se puede deshacer. Esto eliminará permanentemente el material asignado
+                                        <span className="font-semibold"> {(mt.materialProjectId as any)?.referenceCode}</span> de esta tarea.
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => mt._id && handleRemoveMaterial(mt._id)}>
+                                        Eliminar
+                                    </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -244,10 +374,11 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
             </div>
           </div>
         </ScrollArea>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cerrar</Button>
+        <DialogFooter className="mt-auto pt-4 border-t">
+          <Button variant="outline" onClick={() => { onClose(); setEditingMaterialTask(null); }} disabled={isSubmitting}>Cerrar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 };
+

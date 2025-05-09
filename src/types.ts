@@ -82,6 +82,9 @@ export interface MaterialTask {
   materialProjectId: string; // Reference to MaterialProject _id
   phaseId: string; // Reference to the phase this task (and thus material usage) belongs to
   quantityUsed: number;
+  materialCostForTask?: number; // Calculated: quantityUsed * unitPriceOfMaterialProject
+  profitMarginForTaskMaterial?: number | null; // Copied from MaterialProject or task-specific
   createdAt?: Date;
   updatedAt?: Date;
 }
+

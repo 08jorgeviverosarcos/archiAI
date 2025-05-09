@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import MaterialTask from '@/models/MaterialTask';
+import MaterialProject from '@/models/MaterialProject'; // Needed for recalculating cost
 import mongoose from 'mongoose';
 import { z } from 'zod';
 
@@ -12,7 +13,8 @@ interface Params {
 }
 
 const materialTaskUpdateSchema = z.object({
-  quantityUsed: z.number().min(0, "Quantity used must be non-negative").optional(),
+  quantityUsed: z.number().min(0.000001, "Quantity used must be greater than 0").optional(),
+  profitMarginForTaskMaterial: z.number().min(0).optional().nullable(),
   // materialProjectId and phaseId are generally not updatable this way,
   // if needs to change, it's better to delete and create a new MaterialTask
 }).strict();
@@ -31,7 +33,12 @@ export async function GET(request: Request, { params }: { params: Params }) {
   try {
     await connectDB();
 
-    const materialTask = await MaterialTask.findById(materialTaskId).populate('materialProjectId');
+    const materialTask = await MaterialTask.findById(materialTaskId)
+        .populate({
+            path: 'materialProjectId',
+            model: MaterialProject,
+            select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin'
+        });
 
     if (!materialTask) {
       return new NextResponse(JSON.stringify({ message: 'MaterialTask not found' }), {
@@ -67,7 +74,6 @@ export async function PUT(request: Request, { params }: { params: Params }) {
     const body = await request.json();
     const parsedBody = materialTaskUpdateSchema.parse(body);
 
-    // Check if there's anything to update
     if (Object.keys(parsedBody).length === 0) {
         return new NextResponse(JSON.stringify({ message: 'No update data provided' }), {
             status: 400,
@@ -75,15 +81,47 @@ export async function PUT(request: Request, { params }: { params: Params }) {
         });
     }
 
+    const existingMaterialTask = await MaterialTask.findById(materialTaskId);
+    if (!existingMaterialTask) {
+        return new NextResponse(JSON.stringify({ message: 'MaterialTask not found for update' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    }
+    
+    const updateData: Partial<mongoose.UpdateQuery<typeof existingMaterialTask>> = {};
+
+    if (parsedBody.quantityUsed !== undefined) {
+        updateData.quantityUsed = parsedBody.quantityUsed;
+        // Recalculate materialCostForTask if quantityUsed changes
+        const materialProject = await MaterialProject.findById(existingMaterialTask.materialProjectId);
+        if (materialProject) {
+            updateData.materialCostForTask = parsedBody.quantityUsed * (materialProject.estimatedUnitPrice || 0);
+        } else {
+            // Handle case where MaterialProject might be deleted, though unlikely if refs are maintained
+            // Or set a default/error state for materialCostForTask
+            console.warn(`MaterialProject with ID ${existingMaterialTask.materialProjectId} not found during MaterialTask update.`);
+            updateData.materialCostForTask = 0; // Or some other default
+        }
+    }
+
+    if (parsedBody.profitMarginForTaskMaterial !== undefined) {
+        updateData.profitMarginForTaskMaterial = parsedBody.profitMarginForTaskMaterial;
+    }
+
 
     const updatedMaterialTask = await MaterialTask.findByIdAndUpdate(
       materialTaskId,
-      { $set: parsedBody },
+      { $set: updateData },
       { new: true, runValidators: true }
-    ).populate('materialProjectId');
+    ).populate({
+        path: 'materialProjectId',
+        model: MaterialProject,
+        select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin'
+    });
 
     if (!updatedMaterialTask) {
-      return new NextResponse(JSON.stringify({ message: 'MaterialTask not found for update' }), {
+      return new NextResponse(JSON.stringify({ message: 'MaterialTask not found after update attempt (should not happen)' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -137,3 +175,4 @@ export async function DELETE(request: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
+
