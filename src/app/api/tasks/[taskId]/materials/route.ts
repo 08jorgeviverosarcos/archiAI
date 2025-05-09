@@ -1,4 +1,3 @@
-
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -18,7 +17,8 @@ const materialTaskCreateSchema = z.object({
     message: "Invalid MaterialProject ID",
   }),
   quantityUsed: z.number().min(0.000001, "Quantity used must be greater than 0"), // Ensure quantity is positive
-  // materialCostForTask and profitMarginForTaskMaterial will be derived or copied
+  profitMarginForTaskMaterial: z.number().min(0).optional().nullable(), // Optional: profit margin for this specific assignment
+  // materialCostForTask will be derived or copied
 });
 
 // GET all materials for a specific task
@@ -39,7 +39,7 @@ export async function GET(request: Request, { params }: { params: Params }) {
       .populate({
           path: 'materialProjectId',
           model: MaterialProject, // Explicitly specify the model for population
-          select: 'referenceCode description unitOfMeasure estimatedUnitPrice' // Select fields you need from MaterialProject
+          select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin purchasedValue' // Select fields you need from MaterialProject
       })
       .sort({ createdAt: -1 });
     
@@ -98,17 +98,22 @@ export async function POST(request: Request, { params }: { params: Params }) {
           });
     }
 
-    // Calculate materialCostForTask and snapshot profitMargin
+    // Calculate materialCostForTask
     const materialCostForTask = parsedBody.quantityUsed * (materialProjectExists.estimatedUnitPrice || 0);
-    const profitMarginForTaskMaterial = materialProjectExists.profitMargin; // Snapshot the profit margin
+    
+    // Use provided profit margin or default to MaterialProject's profit margin
+    const profitMarginToUse = parsedBody.profitMarginForTaskMaterial !== undefined && parsedBody.profitMarginForTaskMaterial !== null
+        ? parsedBody.profitMarginForTaskMaterial
+        : materialProjectExists.profitMargin;
+
 
     const newMaterialTask = new MaterialTask({
       taskId: new mongoose.Types.ObjectId(taskId),
       materialProjectId: new mongoose.Types.ObjectId(parsedBody.materialProjectId),
-      phaseId: taskExists.phaseUUID,
+      phaseId: taskExists.phaseUUID, // Use phaseUUID from Task
       quantityUsed: parsedBody.quantityUsed,
       materialCostForTask: materialCostForTask,
-      profitMarginForTaskMaterial: profitMarginForTaskMaterial,
+      profitMarginForTaskMaterial: profitMarginToUse, // Use determined profit margin
     });
 
     await newMaterialTask.save();
@@ -118,7 +123,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
       .populate({
           path: 'materialProjectId',
           model: MaterialProject,
-          select: 'referenceCode description unitOfMeasure estimatedUnitPrice'
+          select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin purchasedValue'
       });
 
 
@@ -143,4 +148,3 @@ export async function POST(request: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
-

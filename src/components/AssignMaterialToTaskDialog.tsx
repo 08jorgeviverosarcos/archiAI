@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -52,6 +51,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
 
   const [selectedMaterialProject, setSelectedMaterialProject] = useState<string>('');
   const [quantityUsed, setQuantityUsed] = useState<number | string>('');
+  const [profitMargin, setProfitMargin] = useState<number | string>(''); // State for new material profit margin
 
   const [editingMaterialTask, setEditingMaterialTask] = useState<MaterialTask | null>(null);
   const [editFormData, setEditFormData] = useState<MaterialTaskEditFormData>({ quantityUsed: 0, profitMarginForTaskMaterial: null });
@@ -98,6 +98,9 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
       fetchAssignedMaterials();
       fetchProjectMaterials();
       setEditingMaterialTask(null); // Reset editing state when dialog opens
+      setSelectedMaterialProject(''); // Reset form fields
+      setQuantityUsed('');
+      setProfitMargin('');
     }
   }, [isOpen, fetchAssignedMaterials, fetchProjectMaterials]);
 
@@ -122,10 +125,19 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
     }
     setIsSubmitting(true);
     try {
+      const payload: { materialProjectId: string; quantityUsed: number; profitMarginForTaskMaterial?: number | null } = {
+         materialProjectId: selectedMaterialProject,
+         quantityUsed: Number(quantityUsed)
+      };
+      if (profitMargin !== '') {
+        payload.profitMarginForTaskMaterial = Number(profitMargin);
+      }
+
+
       const response = await fetch(`/api/tasks/${taskId}/materials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ materialProjectId: selectedMaterialProject, quantityUsed: Number(quantityUsed) }),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -135,6 +147,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
       toast({ title: 'Material Asignado', description: 'El material ha sido asignado a la tarea.' });
       setSelectedMaterialProject('');
       setQuantityUsed('');
+      setProfitMargin('');
       onMaterialsUpdated();
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: `No se pudo asignar el material: ${error.message}` });
@@ -163,8 +176,12 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
       const payload:any = {
         quantityUsed: editFormData.quantityUsed,
       };
-      if (editFormData.profitMarginForTaskMaterial !== null && editFormData.profitMarginForTaskMaterial !== undefined) {
-        payload.profitMarginForTaskMaterial = editFormData.profitMarginForTaskMaterial;
+      // Only include profitMarginForTaskMaterial if it's not null or undefined
+      // The backend schema allows null, so an empty string input should become null.
+      if (editFormData.profitMarginForTaskMaterial === null || editFormData.profitMarginForTaskMaterial === undefined || editFormData.profitMarginForTaskMaterial === '') {
+        payload.profitMarginForTaskMaterial = null;
+      } else {
+        payload.profitMarginForTaskMaterial = Number(editFormData.profitMarginForTaskMaterial);
       }
 
 
@@ -261,6 +278,18 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                     />
                   </div>
                 </div>
+                 <div className="space-y-1">
+                    <Label htmlFor="profit-margin-new">Margen de Utilidad para esta tarea (%) (Opcional)</Label>
+                    <Input
+                      id="profit-margin-new"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={profitMargin}
+                      onChange={(e) => setProfitMargin(e.target.value)}
+                      placeholder="Ej. 10 (para 10%, si se deja vacío usará el del material)"
+                    />
+                  </div>
                 <Button type="submit" disabled={isSubmitting || isLoadingProjectMaterials || projectMaterials.length === 0}>
                   {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PackagePlus className="h-4 w-4 mr-2" />}
                   Asignar Material
@@ -324,6 +353,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                       <TableHead className="text-right">Cant. Usada</TableHead>
                       <TableHead className="text-right">Costo Material</TableHead>
                       <TableHead className="text-right">Utilidad (%)</TableHead>
+                       <TableHead className="text-right">Valor Compra Tarea</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -335,6 +365,11 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                         <TableCell className="text-right">{mt.quantityUsed.toLocaleString()}</TableCell>
                         <TableCell className="text-right">{mt.materialCostForTask?.toLocaleString() ?? 'N/A'}</TableCell>
                         <TableCell className="text-right">{mt.profitMarginForTaskMaterial?.toLocaleString() ?? '-'}%</TableCell>
+                        <TableCell className="text-right">
+                            {typeof (mt.materialProjectId as any)?.purchasedValue === 'number' && typeof mt.quantityUsed === 'number' && typeof (mt.materialProjectId as any)?.quantity === 'number' && (mt.materialProjectId as any)?.quantity !== 0
+                                ? (((mt.materialProjectId as any).purchasedValue / (mt.materialProjectId as any).quantity) * mt.quantityUsed).toLocaleString()
+                                : 'N/A'}
+                        </TableCell>
                         <TableCell className="text-right space-x-1">
                            <Button variant="ghost" size="icon" onClick={() => setEditingMaterialTask(mt)} disabled={isSubmitting || !!editingMaterialTask}>
                                 <Edit className="h-4 w-4" />
@@ -381,4 +416,3 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
     </Dialog>
   );
 };
-
