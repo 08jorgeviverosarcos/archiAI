@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -10,7 +9,7 @@ import type { MaterialTask, MaterialProject } from '@/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
+// import { ScrollArea } from '@/components/ui/scroll-area'; // Removed ScrollArea
 import {
     Table,
     TableBody,
@@ -251,7 +250,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); setEditingMaterialTask(null); } }}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Gestionar Materiales de Tarea</DialogTitle>
           <DialogDescription>
@@ -259,200 +258,198 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-grow pr-6">
-          <div className="space-y-6 py-4">
-            {!editingMaterialTask ? (
-              <form onSubmit={handleAddMaterial} className="space-y-4 p-4 border rounded-md">
-                <h3 className="text-lg font-medium">Asignar Nuevo Material</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-                  <div className="space-y-1">
-                    <Label htmlFor="material-select">Material del Proyecto</Label>
-                    {isLoadingProjectMaterials ? (
-                      <div className="flex items-center"> <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando...</div>
-                    ) : projectMaterials.length > 0 ? (
-                      <Select value={selectedMaterialProject} onValueChange={setSelectedMaterialProject}>
-                        <SelectTrigger id="material-select">
-                          <SelectValue placeholder="Seleccionar material" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {projectMaterials.map((material) => (
-                            <SelectItem key={material._id} value={material._id!}>
-                              {material.referenceCode} - {material.description} (Disp: {material.quantity} {material.unitOfMeasure})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No hay materiales en el proyecto.</p>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="quantity-used">Cantidad a Usar</Label>
-                    <Input
-                      id="quantity-used"
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={quantityUsed}
-                      onChange={(e) => setQuantityUsed(e.target.value)}
-                      placeholder="Ej. 10.5"
-                    />
-                  </div>
+        <div className="space-y-6 py-4 flex-1"> {/* Added flex-1 to allow this section to grow and push footer */}
+          {!editingMaterialTask ? (
+            <form onSubmit={handleAddMaterial} className="space-y-4 p-4 border rounded-md">
+              <h3 className="text-lg font-medium">Asignar Nuevo Material</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                <div className="space-y-1">
+                  <Label htmlFor="material-select">Material del Proyecto</Label>
+                  {isLoadingProjectMaterials ? (
+                    <div className="flex items-center"> <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando...</div>
+                  ) : projectMaterials.length > 0 ? (
+                    <Select value={selectedMaterialProject} onValueChange={setSelectedMaterialProject}>
+                      <SelectTrigger id="material-select">
+                        <SelectValue placeholder="Seleccionar material" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projectMaterials.map((material) => (
+                          <SelectItem key={material._id} value={material._id!}>
+                            {material.referenceCode} - {material.description} (Disp: {material.quantity} {material.unitOfMeasure})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No hay materiales en el proyecto.</p>
+                  )}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <Label htmlFor="profit-margin-new">Margen de Utilidad para esta tarea (%) (Opcional)</Label>
-                    <Input
-                      id="profit-margin-new"
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={profitMargin}
-                      onChange={(e) => setProfitMargin(e.target.value)}
-                      placeholder="Ej. 10 (si se deja vacío usará el del material)"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="purchased-value-new">Valor de Compra para esta Asignación (Opcional)</Label>
-                    <Input
-                      id="purchased-value-new"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={purchasedValueForTaskInput}
-                      onChange={(e) => setPurchasedValueForTaskInput(e.target.value)}
-                      placeholder="Ej. 50000"
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <Label htmlFor="quantity-used">Cantidad a Usar</Label>
+                  <Input
+                    id="quantity-used"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={quantityUsed}
+                    onChange={(e) => setQuantityUsed(e.target.value)}
+                    placeholder="Ej. 10.5"
+                  />
                 </div>
-                <Button type="submit" disabled={isSubmitting || isLoadingProjectMaterials || projectMaterials.length === 0}>
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PackagePlus className="h-4 w-4 mr-2" />}
-                  Asignar Material
-                </Button>
-              </form>
-            ) : (
-                <div className="space-y-4 p-4 border rounded-md">
-                    <h3 className="text-lg font-medium">Editar Material Asignado: {((editingMaterialTask.materialProjectId as MaterialProject)?.referenceCode) || 'N/A'}</h3>
-                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div>
-                            <Label htmlFor="edit-quantity-used">Cantidad Usada</Label>
-                            <Input
-                                id="edit-quantity-used"
-                                name="quantityUsed"
-                                type="number"
-                                min="0.01"
-                                step="0.01"
-                                value={editFormData.quantityUsed}
-                                onChange={handleEditInputChange}
-                            />
-                        </div>
-                        <div>
-                            <Label htmlFor="edit-profit-margin">Margen de Utilidad (%)</Label>
-                            <Input
-                                id="edit-profit-margin"
-                                name="profitMarginForTaskMaterial"
-                                type="number"
-                                min="0"
-                                step="0.1"
-                                placeholder="Ej: 10 (para 10%)"
-                                value={editFormData.profitMarginForTaskMaterial ?? ''}
-                                onChange={handleEditInputChange}
-                            />
-                        </div>
-                        <div>
-                            <Label htmlFor="edit-purchased-value">Valor Compra Tarea</Label>
-                            <Input
-                                id="edit-purchased-value"
-                                name="purchasedValueForTask"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                placeholder="Ej: 45000"
-                                value={editFormData.purchasedValueForTask ?? ''}
-                                onChange={handleEditInputChange}
-                            />
-                        </div>
-                    </div>
-                    <div className="flex justify-end space-x-2">
-                        <Button variant="outline" onClick={() => setEditingMaterialTask(null)} disabled={isSubmitting}>Cancelar Edición</Button>
-                        <Button onClick={handleSaveEditMaterialTask} disabled={isSubmitting}>
-                            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                            Guardar Cambios
-                        </Button>
-                    </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="profit-margin-new">Margen de Utilidad para esta tarea (%) (Opcional)</Label>
+                  <Input
+                    id="profit-margin-new"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={profitMargin}
+                    onChange={(e) => setProfitMargin(e.target.value)}
+                    placeholder="Ej. 10 (si se deja vacío usará el del material)"
+                  />
                 </div>
-            )}
+                <div className="space-y-1">
+                  <Label htmlFor="purchased-value-new">Valor de Compra para esta Asignación (Opcional)</Label>
+                  <Input
+                    id="purchased-value-new"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={purchasedValueForTaskInput}
+                    onChange={(e) => setPurchasedValueForTaskInput(e.target.value)}
+                    placeholder="Ej. 50000"
+                  />
+                </div>
+              </div>
+              <Button type="submit" disabled={isSubmitting || isLoadingProjectMaterials || projectMaterials.length === 0}>
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PackagePlus className="h-4 w-4 mr-2" />}
+                Asignar Material
+              </Button>
+            </form>
+          ) : (
+              <div className="space-y-4 p-4 border rounded-md">
+                  <h3 className="text-lg font-medium">Editar Material Asignado: {((editingMaterialTask.materialProjectId as MaterialProject)?.referenceCode) || 'N/A'}</h3>
+                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                          <Label htmlFor="edit-quantity-used">Cantidad Usada</Label>
+                          <Input
+                              id="edit-quantity-used"
+                              name="quantityUsed"
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              value={editFormData.quantityUsed}
+                              onChange={handleEditInputChange}
+                          />
+                      </div>
+                      <div>
+                          <Label htmlFor="edit-profit-margin">Margen de Utilidad (%)</Label>
+                          <Input
+                              id="edit-profit-margin"
+                              name="profitMarginForTaskMaterial"
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              placeholder="Ej: 10 (para 10%)"
+                              value={editFormData.profitMarginForTaskMaterial ?? ''}
+                              onChange={handleEditInputChange}
+                          />
+                      </div>
+                      <div>
+                          <Label htmlFor="edit-purchased-value">Valor Compra Tarea</Label>
+                          <Input
+                              id="edit-purchased-value"
+                              name="purchasedValueForTask"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="Ej: 45000"
+                              value={editFormData.purchasedValueForTask ?? ''}
+                              onChange={handleEditInputChange}
+                          />
+                      </div>
+                  </div>
+                  <div className="flex justify-end space-x-2">
+                      <Button variant="outline" onClick={() => setEditingMaterialTask(null)} disabled={isSubmitting}>Cancelar Edición</Button>
+                      <Button onClick={handleSaveEditMaterialTask} disabled={isSubmitting}>
+                          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Guardar Cambios
+                      </Button>
+                  </div>
+              </div>
+          )}
 
 
-            <div>
-              <h3 className="text-lg font-medium mb-2 mt-6">Materiales Asignados a esta Tarea</h3>
-              {isLoadingAssigned ? (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  <span className="ml-2">Cargando materiales asignados...</span>
-                </div>
-              ) : assignedMaterials.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Cód. Ref.</TableHead>
-                      <TableHead>Descripción</TableHead>
-                      <TableHead className="text-right">Cant. Usada</TableHead>
-                      <TableHead className="text-right">Costo Material Tarea</TableHead>
-                      <TableHead className="text-right">Utilidad Tarea (%)</TableHead>
-                      <TableHead className="text-right">Valor Compra Tarea</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
+          <div>
+            <h3 className="text-lg font-medium mb-2 mt-6">Materiales Asignados a esta Tarea</h3>
+            {isLoadingAssigned ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <span className="ml-2">Cargando materiales asignados...</span>
+              </div>
+            ) : assignedMaterials.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cód. Ref.</TableHead>
+                    <TableHead>Descripción</TableHead>
+                    <TableHead className="text-right">Cant. Usada</TableHead>
+                    <TableHead className="text-right">Costo Material Tarea</TableHead>
+                    <TableHead className="text-right">Utilidad Tarea (%)</TableHead>
+                    <TableHead className="text-right">Valor Compra Tarea</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {assignedMaterials.map((mt) => (
+                    <TableRow key={mt._id}>
+                      <TableCell>{(mt.materialProjectId as MaterialProject)?.referenceCode || 'N/A'}</TableCell>
+                      <TableCell>{(mt.materialProjectId as MaterialProject)?.description || 'N/A'}</TableCell>
+                      <TableCell className="text-right">{mt.quantityUsed.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{mt.materialCostForTask?.toLocaleString() ?? 'N/A'}</TableCell>
+                      <TableCell className="text-right">{mt.profitMarginForTaskMaterial?.toLocaleString() ?? '-'}</TableCell>
+                      <TableCell className="text-right">{mt.purchasedValueForTask?.toLocaleString() ?? 'N/A'}</TableCell>
+                      <TableCell className="text-right space-x-1">
+                         <Button variant="ghost" size="icon" onClick={() => setEditingMaterialTask(mt)} disabled={isSubmitting || !!editingMaterialTask}>
+                              <Edit className="h-4 w-4" />
+                              <span className="sr-only">Editar</span>
+                         </Button>
+                         <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" disabled={isSubmitting || !!editingMaterialTask}>
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                      <span className="sr-only">Eliminar</span>
+                                  </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                  <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                      Esta acción no se puede deshacer. Esto eliminará permanentemente el material asignado
+                                      <span className="font-semibold"> {(mt.materialProjectId as MaterialProject)?.referenceCode}</span> de esta tarea.
+                                  </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => mt._id && handleRemoveMaterial(mt._id)}>
+                                      Eliminar
+                                  </AlertDialogAction>
+                                  </AlertDialogFooter>
+                              </AlertDialogContent>
+                          </AlertDialog>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {assignedMaterials.map((mt) => (
-                      <TableRow key={mt._id}>
-                        <TableCell>{(mt.materialProjectId as MaterialProject)?.referenceCode || 'N/A'}</TableCell>
-                        <TableCell>{(mt.materialProjectId as MaterialProject)?.description || 'N/A'}</TableCell>
-                        <TableCell className="text-right">{mt.quantityUsed.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{mt.materialCostForTask?.toLocaleString() ?? 'N/A'}</TableCell>
-                        <TableCell className="text-right">{mt.profitMarginForTaskMaterial?.toLocaleString() ?? '-'}</TableCell>
-                        <TableCell className="text-right">{mt.purchasedValueForTask?.toLocaleString() ?? 'N/A'}</TableCell>
-                        <TableCell className="text-right space-x-1">
-                           <Button variant="ghost" size="icon" onClick={() => setEditingMaterialTask(mt)} disabled={isSubmitting || !!editingMaterialTask}>
-                                <Edit className="h-4 w-4" />
-                                <span className="sr-only">Editar</span>
-                           </Button>
-                           <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" disabled={isSubmitting || !!editingMaterialTask}>
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                        <span className="sr-only">Eliminar</span>
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        Esta acción no se puede deshacer. Esto eliminará permanentemente el material asignado
-                                        <span className="font-semibold"> {(mt.materialProjectId as MaterialProject)?.referenceCode}</span> de esta tarea.
-                                    </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => mt._id && handleRemoveMaterial(mt._id)}>
-                                        Eliminar
-                                    </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">No hay materiales asignados a esta tarea.</p>
-              )}
-            </div>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">No hay materiales asignados a esta tarea.</p>
+            )}
           </div>
-        </ScrollArea>
-        <DialogFooter className="mt-auto pt-4 border-t">
+        </div>
+        <DialogFooter className="pt-4 border-t">
           <Button variant="outline" onClick={() => { onClose(); setEditingMaterialTask(null); }} disabled={isSubmitting}>Cerrar</Button>
         </DialogFooter>
       </DialogContent>
