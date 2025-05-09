@@ -1,3 +1,4 @@
+
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -81,8 +82,15 @@ export async function POST(request: Request, { params }: { params: Params }) {
     const parsedBody = materialProjectCreateSchema.parse(body);
 
     const newMaterialProject = new MaterialProject({
-      ...parsedBody, // This includes title from the parsed body
       projectId: new mongoose.Types.ObjectId(projectId),
+      title: parsedBody.title,
+      referenceCode: parsedBody.referenceCode,
+      brand: parsedBody.brand,
+      supplier: parsedBody.supplier,
+      description: parsedBody.description,
+      unitOfMeasure: parsedBody.unitOfMeasure,
+      estimatedUnitPrice: parsedBody.estimatedUnitPrice,
+      profitMargin: parsedBody.profitMargin,
     });
 
     await newMaterialProject.save();
@@ -109,3 +117,4 @@ export async function POST(request: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
+
