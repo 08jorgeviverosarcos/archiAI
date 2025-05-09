@@ -1,4 +1,3 @@
-
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -82,7 +81,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
     const parsedBody = materialProjectCreateSchema.parse(body);
 
     const newMaterialProject = new MaterialProject({
-      ...parsedBody,
+      ...parsedBody, // This includes title from the parsed body
       projectId: new mongoose.Types.ObjectId(projectId),
     });
 

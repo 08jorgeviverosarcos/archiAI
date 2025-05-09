@@ -1,4 +1,3 @@
-
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -83,11 +82,11 @@ export async function PUT(request: Request, { params }: { params: Params }) {
         body.profitMargin = Number(body.profitMargin);
     }
 
-    const parsedBody = materialProjectUpdateSchema.parse(body);
+    const parsedBody = materialProjectUpdateSchema.parse(body); // This will include 'title' if present in body
 
     const updatedMaterialProject = await MaterialProject.findByIdAndUpdate(
       materialProjectId,
-      { $set: parsedBody },
+      { $set: parsedBody }, // parsedBody will include title if it was in the request and passed validation
       { new: true, runValidators: true }
     );
 
