@@ -35,7 +35,7 @@ export default function PhaseTasksPage() {
     const params = useParams();
     const router = useRouter();
     const projectId = params.projectId as string;
-    const phaseId = params.phaseId as string;
+    const phaseId = params.phaseId as string; // This is phaseUUID
     const { toast } = useToast();
 
     const [phaseDetails, setPhaseDetails] = useState<InitialPlanPhase | null>(null);
@@ -54,15 +54,11 @@ export default function PhaseTasksPage() {
         setIsLoading(true);
         setError(null);
         try {
+            // Fetch the initial plan which should now contain populated tasks for each phase
             const planRes = await fetch(`/api/initial-plans/${projectId}`);
             if (!planRes.ok) {
                 if (planRes.status === 404) {
-                    const projectRes = await fetch(`/api/projects/${projectId}`);
-                    if (projectRes.ok) {
-                         throw new Error("Planificación inicial no encontrada para este proyecto.");
-                    } else {
-                         throw new Error("Proyecto no encontrado.");
-                    }
+                    throw new Error("Planificación inicial no encontrada para este proyecto.");
                 }
                 let errorMsg = "Fallo al cargar la planificación inicial.";
                 try {
@@ -77,25 +73,18 @@ export default function PhaseTasksPage() {
                 throw new Error("La estructura de la planificación inicial es inválida o no contiene fases.");
             }
 
+            // Find the specific phase using phaseId (which is phaseUUID)
             const foundPhase = planData.initialPlan.phases.find((p: InitialPlanPhase) => p.phaseId === phaseId);
 
             if (foundPhase) {
                 setPhaseDetails(foundPhase);
+                // Tasks are now expected to be part of foundPhase.tasks, populated by the backend
+                setTasks(foundPhase.tasks || []);
+                console.log(`Phase "${foundPhase.phaseName}" found with ${foundPhase.tasks?.length || 0} tasks.`);
             } else {
                 throw new Error(`Fase con UUID ${phaseId} no encontrada en la planificación del proyecto ${projectId}`);
             }
 
-             const tasksRes = await fetch(`/api/tasks?projectId=${projectId}&phaseUUID=${phaseId}`);
-             if (!tasksRes.ok) {
-                let errorMsg = "Fallo al cargar las tareas.";
-                try {
-                    const errorData = await tasksRes.json();
-                    errorMsg = errorData.message || errorMsg;
-                } catch (e) {/* ignore */}
-                 throw new Error(errorMsg);
-             }
-             const tasksData = await tasksRes.json();
-             setTasks(tasksData.tasks || []);
         } catch (err: any) {
             console.error("Error loading phase tasks page:", err);
             setError(`${err.message}`);
@@ -139,19 +128,16 @@ export default function PhaseTasksPage() {
         });
     };
 
-    const handleDeleteTask = async (taskId: string) => {
-        if (!taskId) return;
+    const handleDeleteTask = async (taskIdToDelete: string) => {
+        if (!taskIdToDelete) return;
+        // Optional: Add confirmation dialog
         try {
-            const response = await fetch(`/api/tasks/${taskId}`, {
+            const response = await fetch(`/api/tasks/${taskIdToDelete}`, {
                 method: 'DELETE',
             });
             if (!response.ok) {
-                let errorMsg = 'Failed to delete task';
-                try {
-                    const errorData = await response.json();
-                    errorMsg = errorData.message || errorMsg;
-                } catch(e) {/* ignore */}
-                throw new Error(errorMsg);
+                const errorData = await response.json().catch(() => ({ message: 'Failed to delete task' }));
+                throw new Error(errorData.message);
             }
             toast({
                 title: 'Tarea Eliminada',
@@ -176,7 +162,7 @@ export default function PhaseTasksPage() {
     const closeAssignMaterialDialog = () => {
         setSelectedTaskForMaterials(null);
         setIsAssignMaterialDialogOpen(false);
-        fetchPhaseData(); // Refetch tasks as materials might influence summaries or views
+        fetchPhaseData(); 
     };
 
     if (isLoading) {
@@ -292,9 +278,11 @@ export default function PhaseTasksPage() {
                                           </TableCell>
                                         <TableCell className="text-right">{task.estimatedCost.toLocaleString()}</TableCell>
                                         <TableCell>
-                                            <Button variant="outline" size="sm" onClick={() => openAssignMaterialDialog(task)}>
-                                                <PackagePlus className="h-4 w-4 mr-1" /> Asignar
-                                            </Button>
+                                            {task._id && (
+                                                <Button variant="outline" size="sm" onClick={() => openAssignMaterialDialog(task)}>
+                                                    <PackagePlus className="h-4 w-4 mr-1" /> Asignar
+                                                </Button>
+                                            )}
                                         </TableCell>
                                         <TableCell className="text-right space-x-1">
                                              <Button variant="ghost" size="icon" onClick={() => handleEditTask(task)}>
@@ -322,14 +310,14 @@ export default function PhaseTasksPage() {
                     )}
                 </CardContent>
             </Card>
-            <Toaster />
-            {selectedTaskForMaterials && (
+            <Toaster /> {/* Add Toaster for notifications */}
+            {selectedTaskForMaterials && selectedTaskForMaterials._id && (
                 <AssignMaterialToTaskDialog
-                    taskId={selectedTaskForMaterials._id!}
+                    taskId={selectedTaskForMaterials._id}
                     projectId={projectId}
                     isOpen={isAssignMaterialDialogOpen}
                     onClose={closeAssignMaterialDialog}
-                    onMaterialsUpdated={fetchPhaseData} // To refresh task list if needed
+                    onMaterialsUpdated={fetchPhaseData} 
                 />
             )}
         </div>

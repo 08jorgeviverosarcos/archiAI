@@ -10,19 +10,15 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { ProjectDetails, InitialPlan as InitialPlanType } from '@/types'; // Ensure InitialPlanType is imported
+import { ProjectDetails, FrontendInitialPlanPhase, FrontendGeneratedPlanResponse } from '@/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 
 interface ProjectDetailsFormProps {
-  // Callback function when project and initial plan are successfully created
-  onProjectCreated: (projectDetails: ProjectDetails, initialPlan: InitialPlanType[] | null, initialPlanId: string | null) => void;
-  // Function to handle cancellation or going back
+  onProjectCreated: (projectDetails: ProjectDetails, initialPlan: FrontendInitialPlanPhase[] | null, initialPlanId: string | null) => void;
   onCancel: () => void;
 }
 
-
-// Schema should match the data being sent to the API POST request
 const formSchema = z.object({
   projectName: z.string().min(2, {
     message: 'El nombre del proyecto debe tener al menos 2 caracteres.',
@@ -37,7 +33,7 @@ const formSchema = z.object({
   }),
   currency: z.string().min(2).max(3, {
     message: 'La moneda debe tener entre 2 y 3 caracteres.',
-  }).default('COP'), // Default currency
+  }).default('COP'),
   functionalRequirements: z.string().min(10, {
     message: 'Los requisitos funcionales deben tener al menos 10 caracteres.',
   }),
@@ -46,7 +42,7 @@ const formSchema = z.object({
 
 export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
     onProjectCreated,
-    onCancel // Receive the cancel handler
+    onCancel
 }) => {
   const { toast } = useToast();
   const form = useForm<z.infer<typeof formSchema>>({
@@ -54,10 +50,10 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
     defaultValues: {
       projectName: '',
       projectDescription: '',
-      projectType: undefined, // Let placeholder show initially
+      projectType: undefined,
       projectLocation: '',
       totalBudget: 0,
-      currency: 'COP', // Default currency
+      currency: 'COP',
       functionalRequirements: '',
       aestheticPreferences: '',
     },
@@ -83,38 +79,36 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
       if (!response.ok) {
         let errorData = { message: `Server error: ${response.statusText}` };
         try {
-          errorData = await response.json(); // Try parsing JSON first
+          errorData = await response.json(); 
           console.error('API Error Response (JSON):', errorData);
         } catch (jsonError) {
-           const errorText = await response.text(); // Read text if JSON parsing fails
+           const errorText = await response.text(); 
           console.error('API Error Response (Text):', errorText);
-          errorData.message = `Failed to generate plan. Server responded with: ${errorText.substring(0, 100)}...`; // Include part of the text error
+          errorData.message = `Failed to generate plan. Server responded with: ${errorText.substring(0, 100)}...`; 
         }
         throw new Error(errorData.message || 'Fallo al generar el plan inicial');
       }
 
-      const data = await response.json(); // Parse JSON only if response is ok
+      const data: FrontendGeneratedPlanResponse = await response.json();
       console.log("API success response data:", data);
 
-      // Prepare data for the callback
       const newProjectDetails: ProjectDetails = {
            ...values,
            _id: data.projectId,
-           createdAt: new Date(), // Add creation timestamp locally
-           updatedAt: new Date(), // Add update timestamp locally
+           createdAt: new Date(), 
+           updatedAt: new Date(), 
+           totalEstimatedCost: data.totalEstimatedCost, // Include total estimated cost from AI response
        };
-      const generatedPlan: InitialPlanType[] | null = data.initialPlan || null;
+      // data.initialPlan is now FrontendInitialPlanPhase[] which includes tasks
+      const generatedPlanWithTasks: FrontendInitialPlanPhase[] | null = data.initialPlan || null;
       const planId: string | null = data.initialPlanId || null;
 
-      // Call the callback function passed from the parent
-      onProjectCreated(newProjectDetails, generatedPlan, planId);
-
+      onProjectCreated(newProjectDetails, generatedPlanWithTasks, planId);
 
       toast({
         title: 'Plan Inicial Generado',
-        description: 'El plan inicial se ha generado y guardado correctamente.',
+        description: 'El plan inicial con fases y tareas se ha generado y guardado correctamente.',
       });
-
 
     } catch (error: any) {
       console.error('Error al generar el plan inicial:', error);
@@ -132,7 +126,6 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
     <Form {...form}>
       <h2 className="text-xl font-bold mb-4">Crear Nuevo Proyecto</h2>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {/* Section 1: Información General */}
         <div>
             <h3 className="text-lg font-semibold mb-2 border-b pb-1">Información del Proyecto</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -208,7 +201,6 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
             </div>
         </div>
 
-         {/* Section 2: Presupuesto */}
          <div>
              <h3 className="text-lg font-semibold mb-2 border-b pb-1">Presupuesto Inicial</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -224,11 +216,10 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
                         <Input
                           type="number"
                           placeholder="Ingrese el presupuesto"
-                          {...field} // Spread field props first
-                          value={field.value === 0 ? '' : field.value} // Control value for placeholder behavior
+                          {...field} 
+                          value={field.value === 0 ? '' : field.value} 
                           onChange={(e) => {
                             const value = e.target.value;
-                             // Allow empty input or convert to number
                             field.onChange(value === '' ? 0 : Number(value));
                           }}
                         />
@@ -253,7 +244,6 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
                                  <SelectItem value="COP">COP</SelectItem>
                                  <SelectItem value="USD">USD</SelectItem>
                                  <SelectItem value="EUR">EUR</SelectItem>
-                                 {/* Add other currencies as needed */}
                              </SelectContent>
                          </Select>
                         <FormMessage />
@@ -263,8 +253,6 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
             </div>
          </div>
 
-
-        {/* Section 3: Requisitos */}
          <div>
             <h3 className="text-lg font-semibold mb-2 border-b pb-1">Requisitos y Preferencias</h3>
             <div className="space-y-4">

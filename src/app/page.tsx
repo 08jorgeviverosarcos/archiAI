@@ -1,32 +1,33 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation'; // Import useSearchParams and useRouter
+import { useSearchParams, useRouter } from 'next/navigation';
 import { ProjectDetailsForm } from '@/components/ProjectDetailsForm';
 import { PlanDisplay } from '@/components/PlanDisplay';
-import { ProjectSelector } from '@/components/ProjectSelector'; // New component
-import { ProjectDetails, InitialPlan as InitialPlanType } from '@/types'; // Use specific type
+import { ProjectSelector } from '@/components/ProjectSelector';
+import { ProjectDetails, FrontendInitialPlanPhase, FrontendGeneratedPlanResponse } from '@/types'; // Updated types
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft } from 'lucide-react'; // Import ArrowLeft
+import { Loader2, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Toaster } from '@/components/ui/toaster'; // Import Toaster
+import { Toaster } from '@/components/ui/toaster';
 
 export default function Home() {
   const router = useRouter();
-  const searchParams = useSearchParams(); // Get query parameters
-  const editProjectId = searchParams.get('edit'); // Check for 'edit' parameter
+  const searchParams = useSearchParams();
+  const editProjectId = searchParams.get('edit');
 
   const [projects, setProjects] = useState<ProjectDetails[]>([]);
   const [selectedProject, setSelectedProject] = useState<ProjectDetails | null>(null);
-  const [initialPlan, setInitialPlan] = useState<InitialPlanType[] | null>(null);
-  const [initialPlanId, setInitialPlanId] = useState<string | null>(null); // Store InitialPlan _id
-  const [isLoading, setIsLoading] = useState(true); // Start loading initially
-  const [isCreatingProject, setIsCreatingProject] = useState(false); // State to show/hide creation form
-  const [isEditingProject, setIsEditingProject] = useState(!!editProjectId); // State to track edit mode
+  // initialPlan state now expects FrontendInitialPlanPhase[] which includes tasks
+  const [initialPlan, setInitialPlan] = useState<FrontendInitialPlanPhase[] | null>(null);
+  const [initialPlanId, setInitialPlanId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [isEditingProject, setIsEditingProject] = useState(!!editProjectId);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Fetch project details based on ID
   const fetchProjectById = useCallback(async (projectId: string) => {
       console.log(`Fetching project details for editing: ${projectId}`);
       setIsLoading(true);
@@ -44,38 +45,34 @@ export default function Home() {
           const projectData = await projectRes.json();
           console.log('Fetched project data for editing:', projectData);
           if (projectData.project) {
-            setSelectedProject(projectData.project); // This will trigger the plan fetch useEffect
-            setIsCreatingProject(false); // Ensure creation form is hidden
-            setIsEditingProject(true); // We are in edit mode
+            setSelectedProject(projectData.project);
+            setIsCreatingProject(false);
+            setIsEditingProject(true);
           } else {
-             throw new Error('Project not found.');
+             throw new Error('Proyecto no encontrado.');
           }
       } catch (err: any) {
           console.error("Error fetching project for editing:", err);
-          setError(`Could not load project for editing: ${err.message}`);
+          setError(`No se pudo cargar el proyecto para editar: ${err.message}`);
           toast({
               variant: "destructive",
               title: "Error",
               description: `No se pudo cargar el proyecto para editar: ${err.message}`,
           });
-          setSelectedProject(null); // Reset selection
-          setIsEditingProject(false); // Exit edit mode on error
-          router.replace('/'); // Remove query param if project fetch fails
-      } finally {
-           // Let the plan fetching handle the final isLoading state
+          setSelectedProject(null);
+          setIsEditingProject(false);
+          router.replace('/');
       }
-  }, [router, toast]); // Added router and toast
+  }, [router, toast]);
 
-  // Fetch list of projects when the component mounts or edit mode changes
   useEffect(() => {
-      // Only fetch all projects if not in edit mode initially
       if (!isEditingProject) {
           const fetchProjects = async () => {
               console.log("Fetching projects...");
               setIsLoading(true);
               setError(null);
               try {
-                  const response = await fetch('/api/projects'); // API route to get projects
+                  const response = await fetch('/api/projects');
                   console.log("Projects API response status:", response.status);
                   if (!response.ok) {
                       throw new Error(`Failed to fetch projects: ${response.statusText}`);
@@ -88,7 +85,7 @@ export default function Home() {
                   }
               } catch (err: any) {
                   console.error("Error fetching projects:", err);
-                  setError('Could not load projects. Please try again later.');
+                  setError('No se pudieron cargar los proyectos. Por favor, inténtelo de nuevo más tarde.');
                   toast({
                       variant: "destructive",
                       title: "Error",
@@ -101,156 +98,145 @@ export default function Home() {
           };
           fetchProjects();
       }
-  }, [isEditingProject, toast]); // Re-run if edit mode changes
+  }, [isEditingProject, toast]);
 
 
-  // Effect to handle initial loading based on query parameter
   useEffect(() => {
-      if (editProjectId && !selectedProject) { // Check if we have an edit ID but no project loaded yet
+      if (editProjectId && !selectedProject) {
           fetchProjectById(editProjectId);
       } else {
-          setIsLoading(false); // If no edit ID, loading depends on project list fetch
+          setIsLoading(false);
       }
-   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editProjectId, fetchProjectById]); // Run when editProjectId changes
+  }, [editProjectId, fetchProjectById, selectedProject]);
 
-  // Fetch initial plan when a project is selected (either by clicking or via edit mode)
   useEffect(() => {
-    const fetchInitialPlan = async () => {
-      if (selectedProject?._id) { // Check if a project is selected
+    const fetchInitialPlanAndTasks = async () => {
+      if (selectedProject?._id) {
         const projectId = selectedProject._id;
-        console.log(`Fetching initial plan using project ID: ${projectId}`);
-        setIsLoading(true); // Show loading when fetching plan
-        setError(null); // Clear previous errors
-        setInitialPlan(null); // Clear previous plan phases
-        setInitialPlanId(null); // Clear previous plan ID
+        console.log(`Fetching initial plan with tasks using project ID: ${projectId}`);
+        setIsLoading(true);
+        setError(null);
+        setInitialPlan(null);
+        setInitialPlanId(null);
         try {
-          // Fetch the InitialPlan document using the projectId
-          const response = await fetch(`/api/initial-plans/${projectId}`);
-          console.log(`Initial plan API response status for project ID ${projectId}:`, response.status);
+          const response = await fetch(`/api/initial-plans/${projectId}`); // This endpoint now needs to return phases with tasks
+          console.log(`Initial plan (with tasks) API response status for project ID ${projectId}:`, response.status);
 
           if (!response.ok) {
             if (response.status === 404) {
-              setInitialPlan(null); // No plan found
+              setInitialPlan(null);
               setInitialPlanId(null);
               console.warn(`Initial plan not found for project ${projectId}`);
               toast({
-                variant: "default", // Use default variant for info
+                variant: "default",
                 title: "Planificación no encontrada",
                 description: "No se encontró una planificación inicial guardada para este proyecto.",
               });
             } else {
               let errorMsg = `Failed to fetch initial plan: ${response.statusText}`;
-              try {
-                const errorData = await response.json();
-                errorMsg = errorData.message || errorMsg;
-              } catch (e) { /* Ignore if response is not JSON */ }
+              try { const errorData = await response.json(); errorMsg = errorData.message || errorMsg; } catch (e) { /* Ignore */ }
               throw new Error(errorMsg);
             }
           } else {
-            const planData = await response.json();
-            console.log("Fetched Initial Plan Data:", JSON.stringify(planData, null, 2));
+            // Expecting response to be { initialPlan: InitialPlanDocument }
+            // where InitialPlanDocument contains phases, and each phase *might* contain tasks if populated by backend.
+            // The API /api/initial-plans/${projectId} GET now populates tasks for each phase.
+            const planDataWrapper = await response.json();
+            console.log("Fetched Initial Plan Document Data:", JSON.stringify(planDataWrapper, null, 2));
 
-            if (planData && planData.initialPlan && Array.isArray(planData.initialPlan.phases)) {
-              const sortedPhases = [...planData.initialPlan.phases].sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0));
-              setInitialPlan(sortedPhases);
-              setInitialPlanId(planData.initialPlan._id);
-              console.log("Successfully set initial plan state with sorted phases:", sortedPhases);
+            if (planDataWrapper && planDataWrapper.initialPlan && Array.isArray(planDataWrapper.initialPlan.phases)) {
+              const fetchedInitialPlanDoc = planDataWrapper.initialPlan;
+              // Sort phases by order
+              const sortedPhasesWithTasks = [...fetchedInitialPlanDoc.phases].sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0));
+              
+              // The tasks are now populated by the backend in the initialPlan.phases array
+              setInitialPlan(sortedPhasesWithTasks as FrontendInitialPlanPhase[]); // Cast as tasks are included
+              setInitialPlanId(fetchedInitialPlanDoc._id);
+              console.log("Successfully set initial plan state with sorted phases and their tasks:", sortedPhasesWithTasks);
             } else {
-              console.warn("Fetched plan data is missing expected structure or phases array:", planData);
+              console.warn("Fetched plan data is missing expected structure (initialPlan.phases array):", planDataWrapper);
               setInitialPlan(null);
               setInitialPlanId(null);
               toast({
                 variant: "default",
                 title: "Planificación Vacía",
-                description: "La planificación inicial existe pero no contiene fases.",
+                description: "La planificación inicial existe pero no contiene fases o tareas.",
               });
             }
           }
 
         } catch (err: any) {
-          console.error("Error fetching initial plan:", err);
+          console.error("Error fetching initial plan with tasks:", err);
           toast({
             variant: "destructive",
             title: "Error",
             description: `No se pudo cargar la planificación inicial: ${err.message}`,
           });
-          setInitialPlan(null); // Reset plan on error
+          setInitialPlan(null);
           setInitialPlanId(null);
-          setError(`Failed to load initial plan: ${err.message}`); // Set error state
+          setError(`Failed to load initial plan: ${err.message}`);
         } finally {
           console.log("Finished fetching initial plan, setting isLoading to false");
           setIsLoading(false);
         }
       } else {
-        // If no project is selected, ensure loading is false
-         if (!selectedProject) {
-            // Only set loading false if we are not expecting an edit load
-             if (!editProjectId) {
-                 setIsLoading(false);
-             }
+         if (!selectedProject && !editProjectId) {
+            setIsLoading(false);
          }
       }
     };
+    fetchInitialPlanAndTasks();
+  }, [selectedProject, editProjectId, toast]);
 
-    fetchInitialPlan();
-   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProject, toast]); // Depend on selectedProject and toast
-
-  // Handler for selecting a project from the list
   const handleSelectProject = (project: ProjectDetails) => {
     console.log("Project selected:", project);
     setSelectedProject(project);
-    setIsCreatingProject(false); // Hide creation form
-    setIsEditingProject(false); // Not in specific edit mode from URL
-    setInitialPlan(null); // Reset plan display until it's fetched
-    setInitialPlanId(null);
-    setError(null); // Clear errors
-  };
-
-  // Handler for starting project creation
-  const handleCreateNewProject = () => {
-    console.log("Create new project button clicked");
-    setSelectedProject(null); // Deselect any current project
-    setIsCreatingProject(true); // Show the creation form
-    setIsEditingProject(false); // Not in edit mode
+    setIsCreatingProject(false);
+    setIsEditingProject(false);
     setInitialPlan(null);
     setInitialPlanId(null);
-    setError(null); // Clear errors
+    setError(null);
+    router.push(`/dashboard/${project._id}`); // Navigate to dashboard on project selection
   };
 
-  // Function to handle successful project creation
-  const handleProjectCreated = (newProject: ProjectDetails, plan: InitialPlanType[] | null, planId: string | null) => {
-    console.log("Project created callback:", newProject, plan, planId);
-    // Add the new project to the list locally or refetch
-    setProjects(prev => [newProject, ...prev].sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))); // Sort by creation date
-    setSelectedProject(newProject); // Select the newly created project
-    setInitialPlan(plan);
+  const handleCreateNewProject = () => {
+    console.log("Create new project button clicked");
+    setSelectedProject(null);
+    setIsCreatingProject(true);
+    setIsEditingProject(false);
+    setInitialPlan(null);
+    setInitialPlanId(null);
+    setError(null);
+  };
+
+  const handleProjectCreated = (newProject: ProjectDetails, planWithTasks: FrontendInitialPlanPhase[] | null, planId: string | null) => {
+    console.log("Project created callback:", newProject, planWithTasks, planId);
+    setProjects(prev => [newProject, ...prev].sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime())));
+    setSelectedProject(newProject);
+    setInitialPlan(planWithTasks); // planWithTasks now includes tasks
     setInitialPlanId(planId);
-    setIsCreatingProject(false); // Hide the form
-    setIsEditingProject(false); // Exit creation mode
+    setIsCreatingProject(false);
+    setIsEditingProject(false); // Should be true if we want to edit the newly created plan
+    // Potentially navigate to an edit view or dashboard:
+    // router.push(`/?edit=${newProject._id}`); // To edit plan
+    // OR
+    // router.push(`/dashboard/${newProject._id}`); // To go to dashboard
   };
 
-  // Function to handle going back to project selection/list
   const handleGoBackToList = useCallback(() => {
       console.log("Back button clicked");
       setSelectedProject(null);
       setInitialPlan(null);
       setInitialPlanId(null);
       setIsCreatingProject(false);
-      setIsEditingProject(false); // Exit edit mode
-      setError(null); // Clear errors
-      router.replace('/'); // Remove query param when going back
-      // Refetch projects if needed, or rely on existing list state
-      // You might want to refetch if data could have changed significantly
-      // fetchProjects(); // Uncomment if refetch is desired
-  }, [router]); // Added router
+      setIsEditingProject(false);
+      setError(null);
+      router.replace('/');
+  }, [router]);
 
-  // Render different states based on loading, error, and selection
   const renderContent = () => {
-    // Initial loading state (covers both project list and edit project fetch)
     if (isLoading) {
-        const message = isEditingProject ? 'Cargando proyecto para editar...' : 'Cargando proyectos...';
+        const message = isEditingProject ? 'Cargando proyecto para editar...' : (isCreatingProject ? 'Preparando formulario...' : 'Cargando proyectos...');
         return (
             <div className="flex justify-center items-center min-h-[200px]">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -259,15 +245,12 @@ export default function Home() {
         );
     }
 
-    // Display error if project fetch failed
     if (error && !selectedProject && !isCreatingProject) {
         return <p className="text-center text-destructive">{error}</p>;
     }
 
-    // If a project is selected (viewing plan, either new or existing) or in edit mode
     if (selectedProject || isEditingProject) {
-        // If still loading the plan for the selected/editing project
-        if (isLoading) {
+        if (isLoading) { // Still loading plan for selected/editing project
             return (
                 <div className="flex justify-center items-center min-h-[200px]">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -275,43 +258,37 @@ export default function Home() {
                 </div>
             );
         }
-         // If project is selected and plan is loaded (or attempted)
-        if(selectedProject) {
+        if(selectedProject) { // Project selected, plan loaded (or attempted)
             return (
                 <PlanDisplay
                 projectDetails={selectedProject}
-                initialPlan={initialPlan}
+                initialPlan={initialPlan} // Pass the plan with tasks
                 initialPlanId={initialPlanId}
                 projectId={selectedProject._id || null}
-                onGoBack={handleGoBackToList} // Use the back handler
+                onGoBack={handleGoBackToList}
                 />
             );
         }
-        // If in edit mode but project/plan loading failed or hasn't finished
         return <p className="text-center text-muted-foreground">Cargando detalles del proyecto...</p>;
-
     }
 
-
-    // If creating a new project, show the form
     if (isCreatingProject) {
       return (
         <ProjectDetailsForm
             onProjectCreated={handleProjectCreated}
-            onCancel={handleGoBackToList} // Use back handler for cancel
+            onCancel={handleGoBackToList}
         />
       );
     }
 
-    // Default view: Show ProjectSelector or creation prompt
     return (
         <>
             <h1 className="text-3xl font-bold mb-6 text-center">ArchiPlanAI</h1>
             {projects.length > 0 ? (
-             <ProjectSelector projects={projects} onSelectProject={(p) => router.push(`/dashboard/${p._id}`)} />
-            ) : !isLoading ? ( // Only show creation prompt if not loading and no projects
+             <ProjectSelector projects={projects} onSelectProject={handleSelectProject} />
+            ) : !isLoading ? (
              <p className="text-center text-muted-foreground">No tienes proyectos creados.</p>
-            ) : null /* Don't show anything while loading */}
+            ) : null}
             <div className="mt-6 text-center">
                  <Button onClick={handleCreateNewProject}>
                    Crear Nuevo Proyecto
@@ -323,7 +300,6 @@ export default function Home() {
 
   return (
     <div className="container mx-auto p-4 md:p-8">
-       {/* Conditionally render Back button only when creating or editing */}
        {(isCreatingProject || isEditingProject) && !isLoading && (
          <Button
            variant="outline"
@@ -335,7 +311,8 @@ export default function Home() {
          </Button>
        )}
       {renderContent()}
-      <Toaster /> {/* Add Toaster component here */}
+      <Toaster />
     </div>
   );
 }
+

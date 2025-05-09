@@ -1,17 +1,19 @@
 'use server';
 
 /**
- * @fileOverview API endpoint for generating an initial project plan using GenAI
- * and saving the Project and its InitialPlan to MongoDB.
+ * @fileOverview API endpoint for generating an initial project plan with phases and tasks using GenAI,
+ * and saving the Project, InitialPlan, and Tasks to MongoDB.
  */
 
 import { generateInitialPlan, GenerateInitialPlanOutput } from '@/ai/flows/generate-initial-plan';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import mongoose from 'mongoose';
-import Project from '@/models/Project'; // Import Project model
-import InitialPlan from '@/models/InitialPlan'; // Import InitialPlan model
-import connectDB from '@/lib/db'; // Import db connection utility
+import Project from '@/models/Project';
+import InitialPlan from '@/models/InitialPlan';
+import Task from '@/models/Task'; // Import Task model
+import connectDB from '@/lib/db';
+import type { InitialPlanPhase as InitialPlanPhaseType } from '@/types'; // For frontend response type
 
 const requestSchema = z.object({
   projectName: z.string().min(2),
@@ -25,25 +27,23 @@ const requestSchema = z.object({
 });
 
 // Function to update phases in the InitialPlan document
-async function updateInitialPlanPhases(planId: string, updatedPhases: any) {
+async function updateInitialPlanPhases(planId: string, updatedPhases: InitialPlanPhaseType[]) {
   try {
     await connectDB();
 
-    const totalEstimatedCost = updatedPhases.reduce((sum: number, phase: any) => sum + phase.estimatedCost, 0);
+    const totalEstimatedCost = updatedPhases.reduce((sum, phase) => sum + phase.estimatedCost, 0);
 
     await InitialPlan.findByIdAndUpdate(planId, {
-      phases: updatedPhases.map((phase: any, index: number) => ({ // Add index for order
-        phaseId: phase.phaseId || crypto.randomUUID(), // Ensure phaseId exists
+      phases: updatedPhases.map((phase, index) => ({
+        phaseId: phase.phaseId || crypto.randomUUID(),
         phaseName: phase.phaseName,
-        estimatedDuration: phase.estimatedDuration, // Use correct name from frontend
+        estimatedDuration: phase.estimatedDuration,
         estimatedCost: phase.estimatedCost,
-        order: index + 1, // Assign order based on array index
+        order: index + 1,
       })),
       totalEstimatedCost: totalEstimatedCost,
-      // Let mongoose handle updatedAt automatically
     });
 
-    // Also update the totalEstimatedCost in the parent Project document
     const initialPlanDoc = await InitialPlan.findById(planId);
     if (initialPlanDoc) {
         await Project.findByIdAndUpdate(initialPlanDoc.projectId, {
@@ -51,110 +51,142 @@ async function updateInitialPlanPhases(planId: string, updatedPhases: any) {
         });
     }
 
-
     console.log('InitialPlan phases updated successfully');
   } catch (error) {
     console.error('Error updating InitialPlan phases:', error);
-    throw error; // Re-throw to be caught by the main PUT handler
+    throw error;
   }
-  // No disconnect here, handle connection in the main route handlers
 }
 
 export async function POST(req: Request) {
   try {
-    await connectDB(); // Connect to DB at the start of the request
+    await connectDB();
 
     const body = await req.json();
     const parsedBody = requestSchema.parse(body);
 
-    // 1. Create the Project document (without plan details initially)
     const newProject = new Project({
       ...parsedBody,
-      initialPlan: null, // Will be linked later
-      totalEstimatedCost: 0, // Initialize
-      // Timestamps automatically added
+      initialPlan: null,
+      totalEstimatedCost: 0,
     });
     await newProject.save();
     console.log('Project created successfully with ID:', newProject._id);
 
-    // 2. Call the GenAI flow to generate the initial plan phases
-    const generatedPhases = await generateInitialPlan(parsedBody);
+    // Call GenAI flow - this now returns phases with tasks
+    const generatedPlanWithTasks = await generateInitialPlan(parsedBody);
 
-    // 3. Calculate total estimated cost and add order
-    const totalEstimatedCost = generatedPhases.reduce((sum, phase) => sum + phase.estimatedCost, 0);
-    const phasesWithOrder = generatedPhases.map((phase, index) => ({
-      phaseId: crypto.randomUUID(), // Generate UUID for frontend identification
-      phaseName: phase.phaseName,
-      estimatedDuration: phase.estimatedDuration, // Match schema
-      estimatedCost: phase.estimatedCost,
-      order: index + 1, // Assign order
-    }));
+    const phasesForDb: Omit<InitialPlanPhaseType, '_id' | 'tasks'>[] = [];
+    const allTasksToSave: any[] = []; // To store Task documents for batch saving if desired
 
+    let overallTotalEstimatedCost = 0;
 
-    // 4. Create the InitialPlan document
+    for (const [phaseIndex, phaseData] of generatedPlanWithTasks.entries()) {
+      const phaseUUID = crypto.randomUUID();
+      phasesForDb.push({
+        phaseId: phaseUUID,
+        phaseName: phaseData.phaseName,
+        estimatedDuration: phaseData.estimatedDuration,
+        estimatedCost: phaseData.estimatedCost,
+        order: phaseIndex + 1,
+      });
+      overallTotalEstimatedCost += phaseData.estimatedCost;
+
+      if (phaseData.tasks && phaseData.tasks.length > 0) {
+        for (const taskData of phaseData.tasks) {
+          const newTask = new Task({
+            projectId: newProject._id,
+            phaseUUID: phaseUUID, // Link task to the phase it belongs to
+            title: taskData.taskName,
+            description: '', // AI doesn't provide this yet
+            quantity: 1, // Default
+            unitOfMeasure: 'unidad', // Default, AI doesn't provide this. Could be 'global' or 'dia' depending on task
+            unitPrice: taskData.estimatedCost, // Assuming AI cost is unit price for quantity 1
+            estimatedDuration: taskData.estimatedDuration,
+            status: 'Pendiente', // Default
+            profitMargin: null, // Default
+            laborCost: null, // Default, AI might not break this down
+            estimatedCost: taskData.estimatedCost, // Direct from AI
+            executionPercentage: 0, // Default
+            startDate: null, // Default
+            endDate: null, // Default
+          });
+          // await newTask.save(); // Save each task individually
+          allTasksToSave.push(newTask.save()); // Add promise to array for batch saving
+        }
+      }
+    }
+
+    // Batch save all tasks
+    await Promise.all(allTasksToSave);
+    console.log(`${allTasksToSave.length} tasks created successfully.`);
+
     const newInitialPlan = new InitialPlan({
       projectId: newProject._id,
-      phases: phasesWithOrder,
-      totalEstimatedCost: totalEstimatedCost,
-       // Timestamps automatically added
+      phases: phasesForDb,
+      totalEstimatedCost: overallTotalEstimatedCost,
     });
     await newInitialPlan.save();
     console.log('InitialPlan created successfully with ID:', newInitialPlan._id);
 
-
-    // 5. Update the Project document with the reference to the InitialPlan and total cost
     await Project.findByIdAndUpdate(newProject._id, {
       initialPlan: newInitialPlan._id,
-      totalEstimatedCost: totalEstimatedCost,
-       // Timestamps automatically updated
+      totalEstimatedCost: overallTotalEstimatedCost,
     });
     console.log('Project updated with InitialPlan reference and total cost.');
 
-    // Prepare response for the frontend
+    // Prepare response for the frontend, including tasks
     const responseData = {
-        projectId: newProject._id.toString(), // Send project ID back
-        initialPlanId: newInitialPlan._id.toString(), // Send initial plan ID back
-        initialPlan: phasesWithOrder, // Send the structured phases
-        totalEstimatedCost: totalEstimatedCost,
+        projectId: newProject._id.toString(),
+        initialPlanId: newInitialPlan._id.toString(),
+        // Return the structure as received from AI (phases with tasks) for frontend display
+        initialPlan: generatedPlanWithTasks.map((phaseWithTasks, index) => ({
+            ...phaseWithTasks,
+            phaseId: phasesForDb[index].phaseId, // Ensure the UUID is included
+            order: phasesForDb[index].order,
+        })),
+        totalEstimatedCost: overallTotalEstimatedCost,
     };
-
 
     return NextResponse.json(responseData);
 
   } catch (error) {
-    console.error('Error generating plan:', error);
+    console.error('Error generating plan with tasks:', error);
     if (error instanceof z.ZodError) {
       return new NextResponse(JSON.stringify({
         message: "Validation error",
         errors: error.errors
       }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
-    // Handle other errors
     return new NextResponse(JSON.stringify({
-      message: 'Failed to generate initial plan. Please try again.',
+      message: 'Failed to generate initial plan with tasks. Please try again.',
       error: error instanceof Error ? error.message : String(error),
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
-  // No disconnect here, let the connection pool manage
 }
 
-// Handles updating an existing InitialPlan
 export async function PUT(req: Request) {
     try {
-      await connectDB(); // Connect to DB
+      await connectDB();
 
       const body = await req.json();
-      const { initialPlanId, initialPlan: updatedPhases } = body; // Expect initialPlanId now
+      // Assuming body for PUT contains initialPlanId and an array of InitialPlanPhaseType
+      // If tasks are also editable via this route, the structure would need to include them.
+      // For now, this PUT route is focused on updating phase details (name, duration, cost, order).
+      // Task updates would typically go through their own API endpoints (e.g., /api/tasks/:taskId).
+      const { initialPlanId, initialPlan: updatedPhases } = body;
 
-      // Validate that initialPlanId and updatedPhases are provided
-      if (!initialPlanId || !updatedPhases) {
+      if (!initialPlanId || !updatedPhases || !Array.isArray(updatedPhases)) {
         return new NextResponse(JSON.stringify({
-          message: "Initial Plan ID and updated phases list are required"
+          message: "Initial Plan ID and a valid array of updated phases are required"
         }), { status: 400, headers: { 'Content-Type': 'application/json' } });
       }
 
-      // Update the phases in the specific InitialPlan document
-      await updateInitialPlanPhases(initialPlanId, updatedPhases);
+      await updateInitialPlanPhases(initialPlanId, updatedPhases as InitialPlanPhaseType[]);
+
+      // Note: If tasks were part of the update, you'd iterate through updatedPhases,
+      // find their tasks, and update/create Task documents accordingly.
+      // This could get complex and might be better handled by dedicated task management APIs.
 
       return NextResponse.json({ message: 'Initial Plan updated successfully' });
 
@@ -165,5 +197,4 @@ export async function PUT(req: Request) {
         error: error instanceof Error ? error.message : String(error),
       }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
-     // No disconnect here
   }
