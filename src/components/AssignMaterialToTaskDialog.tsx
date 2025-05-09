@@ -140,12 +140,12 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
          materialProjectId: selectedMaterialProject,
          quantityUsed: Number(quantityUsed)
       };
-      if (profitMargin !== '') {
-        payload.profitMarginForTaskMaterial = Number(profitMargin);
-      }
-      if (purchasedValueForTaskInput !== '') {
-        payload.purchasedValueForTask = Number(purchasedValueForTaskInput);
-      }
+      // Use Number() for conversion, and ensure null is passed if input is empty or not a number
+      const numProfitMargin = Number(profitMargin);
+      payload.profitMarginForTaskMaterial = profitMargin === '' || isNaN(numProfitMargin) ? null : numProfitMargin;
+      
+      const numPurchasedValue = Number(purchasedValueForTaskInput);
+      payload.purchasedValueForTask = purchasedValueForTaskInput === '' || isNaN(numPurchasedValue) ? null : numPurchasedValue;
 
 
       const response = await fetch(`/api/tasks/${taskId}/materials`, {
