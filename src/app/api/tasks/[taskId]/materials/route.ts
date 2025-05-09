@@ -1,4 +1,3 @@
-
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -19,7 +18,7 @@ const materialTaskCreateSchema = z.object({
   }),
   quantityUsed: z.number().min(0.000001, "Quantity used must be greater than 0"), // Ensure quantity is positive
   profitMarginForTaskMaterial: z.number().min(0).optional().nullable(), // Optional: profit margin for this specific assignment
-  purchasedValueForTask: z.number().optional().nullable(), // Optional: specific purchased value for this task
+  purchasedValueForTask: z.number().min(0).optional().nullable(), // Optional: specific purchased value for this task
   // materialCostForTask will be derived or copied
 });
 
@@ -103,10 +102,19 @@ export async function POST(request: Request, { params }: { params: Params }) {
     // Calculate materialCostForTask
     const materialCostForTask = parsedBody.quantityUsed * (materialProjectExists.estimatedUnitPrice || 0);
     
-    // Use provided profit margin or default to MaterialProject's profit margin
-    const profitMarginToUse = parsedBody.profitMarginForTaskMaterial !== undefined && parsedBody.profitMarginForTaskMaterial !== null
-        ? parsedBody.profitMarginForTaskMaterial
-        : materialProjectExists.profitMargin;
+    // Determine profit margin for task:
+    // If profitMarginForTaskMaterial is explicitly provided in the body (even 0 or null if Zod allows), use it.
+    // Otherwise, if it's not in the request body (undefined), save null.
+    const profitMarginForTaskToSave = parsedBody.profitMarginForTaskMaterial !== undefined
+        ? parsedBody.profitMarginForTaskMaterial // This could be a number (e.g., 0, 10) or null if Zod schema parsed it as such from request
+        : null; // If not provided in the request, explicitly save null for this task-specific override
+
+    // Determine purchased value for task:
+    // If purchasedValueForTask is explicitly provided (even 0 or null), use it.
+    // Otherwise, if not in request (undefined), save null.
+    const purchasedValueForTaskToSave = parsedBody.purchasedValueForTask !== undefined
+        ? parsedBody.purchasedValueForTask
+        : null;
 
 
     const newMaterialTask = new MaterialTask({
@@ -115,8 +123,8 @@ export async function POST(request: Request, { params }: { params: Params }) {
       phaseId: taskExists.phaseUUID, // Use phaseUUID from Task
       quantityUsed: parsedBody.quantityUsed,
       materialCostForTask: materialCostForTask,
-      profitMarginForTaskMaterial: profitMarginToUse, // Use determined profit margin
-      purchasedValueForTask: parsedBody.purchasedValueForTask ?? null, // Save specific purchased value
+      profitMarginForTaskMaterial: profitMarginForTaskToSave, 
+      purchasedValueForTask: purchasedValueForTaskToSave,
     });
 
     await newMaterialTask.save();
