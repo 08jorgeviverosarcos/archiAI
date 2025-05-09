@@ -14,6 +14,7 @@ const materialTaskSchema = new Schema<IMaterialTask>(
     quantityUsed: { type: Number, required: true, min: 0 },
     materialCostForTask: { type: Number, required: true, default: 0 }, // Cost of materials for this specific task usage
     profitMarginForTaskMaterial: { type: Number, default: null }, // Profit margin for this specific task's material usage
+    purchasedValueForTask: { type: Number, default: null, required: false }, // Specific purchased value for this task's material usage
   },
   {
     timestamps: true, // Automatically adds createdAt and updatedAt
@@ -24,4 +25,5 @@ const MaterialTask: Model<IMaterialTask> =
   mongoose.models.MaterialTask || mongoose.model<IMaterialTask>('MaterialTask', materialTaskSchema);
 
 export default MaterialTask;
+
 

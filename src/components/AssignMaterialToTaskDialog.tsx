@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -32,6 +33,7 @@ interface AssignMaterialToTaskDialogProps {
 interface MaterialTaskEditFormData {
   quantityUsed: number;
   profitMarginForTaskMaterial?: number | null;
+  purchasedValueForTask?: number | null;
 }
 
 
@@ -51,10 +53,12 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
 
   const [selectedMaterialProject, setSelectedMaterialProject] = useState<string>('');
   const [quantityUsed, setQuantityUsed] = useState<number | string>('');
-  const [profitMargin, setProfitMargin] = useState<number | string>(''); // State for new material profit margin
+  const [profitMargin, setProfitMargin] = useState<number | string>('');
+  const [purchasedValueForTaskInput, setPurchasedValueForTaskInput] = useState<number | string>('');
+
 
   const [editingMaterialTask, setEditingMaterialTask] = useState<MaterialTask | null>(null);
-  const [editFormData, setEditFormData] = useState<MaterialTaskEditFormData>({ quantityUsed: 0, profitMarginForTaskMaterial: null });
+  const [editFormData, setEditFormData] = useState<MaterialTaskEditFormData>({ quantityUsed: 0, profitMarginForTaskMaterial: null, purchasedValueForTask: null });
 
 
   const fetchAssignedMaterials = useCallback(async () => {
@@ -97,10 +101,11 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
     if (isOpen) {
       fetchAssignedMaterials();
       fetchProjectMaterials();
-      setEditingMaterialTask(null); // Reset editing state when dialog opens
-      setSelectedMaterialProject(''); // Reset form fields
+      setEditingMaterialTask(null); 
+      setSelectedMaterialProject(''); 
       setQuantityUsed('');
       setProfitMargin('');
+      setPurchasedValueForTaskInput('');
     }
   }, [isOpen, fetchAssignedMaterials, fetchProjectMaterials]);
 
@@ -110,9 +115,10 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
       setEditFormData({
         quantityUsed: editingMaterialTask.quantityUsed,
         profitMarginForTaskMaterial: editingMaterialTask.profitMarginForTaskMaterial ?? null,
+        purchasedValueForTask: editingMaterialTask.purchasedValueForTask ?? null,
       });
     } else {
-      setEditFormData({ quantityUsed: 0, profitMarginForTaskMaterial: null });
+      setEditFormData({ quantityUsed: 0, profitMarginForTaskMaterial: null, purchasedValueForTask: null });
     }
   }, [editingMaterialTask]);
 
@@ -125,12 +131,20 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
     }
     setIsSubmitting(true);
     try {
-      const payload: { materialProjectId: string; quantityUsed: number; profitMarginForTaskMaterial?: number | null } = {
+      const payload: { 
+        materialProjectId: string; 
+        quantityUsed: number; 
+        profitMarginForTaskMaterial?: number | null;
+        purchasedValueForTask?: number | null;
+    } = {
          materialProjectId: selectedMaterialProject,
          quantityUsed: Number(quantityUsed)
       };
       if (profitMargin !== '') {
         payload.profitMarginForTaskMaterial = Number(profitMargin);
+      }
+      if (purchasedValueForTaskInput !== '') {
+        payload.purchasedValueForTask = Number(purchasedValueForTaskInput);
       }
 
 
@@ -143,11 +157,12 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to assign material');
       }
-      await fetchAssignedMaterials(); // Refetch to get the latest list including populated fields
+      await fetchAssignedMaterials(); 
       toast({ title: 'Material Asignado', description: 'El material ha sido asignado a la tarea.' });
       setSelectedMaterialProject('');
       setQuantityUsed('');
       setProfitMargin('');
+      setPurchasedValueForTaskInput('');
       onMaterialsUpdated();
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: `No se pudo asignar el material: ${error.message}` });
@@ -160,7 +175,9 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
     const { name, value } = e.target;
     setEditFormData(prev => ({
         ...prev,
-        [name]: name === 'profitMarginForTaskMaterial' ? (value === '' ? null : Number(value)) : Number(value)
+        [name]: (name === 'profitMarginForTaskMaterial' || name === 'purchasedValueForTask') 
+                  ? (value === '' ? null : Number(value)) 
+                  : Number(value)
     }));
   };
 
@@ -176,12 +193,17 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
       const payload:any = {
         quantityUsed: editFormData.quantityUsed,
       };
-      // Only include profitMarginForTaskMaterial if it's not null or undefined
-      // The backend schema allows null, so an empty string input should become null.
+      
       if (editFormData.profitMarginForTaskMaterial === null || editFormData.profitMarginForTaskMaterial === undefined || editFormData.profitMarginForTaskMaterial === '') {
         payload.profitMarginForTaskMaterial = null;
       } else {
         payload.profitMarginForTaskMaterial = Number(editFormData.profitMarginForTaskMaterial);
+      }
+
+      if (editFormData.purchasedValueForTask === null || editFormData.purchasedValueForTask === undefined || editFormData.purchasedValueForTask === '') {
+        payload.purchasedValueForTask = null;
+      } else {
+        payload.purchasedValueForTask = Number(editFormData.purchasedValueForTask);
       }
 
 
@@ -196,7 +218,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
       }
       await fetchAssignedMaterials();
       toast({ title: 'Material de Tarea Actualizado', description: 'El material de la tarea ha sido actualizado.' });
-      setEditingMaterialTask(null); // Close edit form
+      setEditingMaterialTask(null); 
       onMaterialsUpdated();
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: `No se pudo actualizar el material de la tarea: ${error.message}` });
@@ -207,7 +229,6 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
 
 
   const handleRemoveMaterial = async (materialTaskId: string) => {
-    // Confirmation is handled by AlertDialog
     setIsSubmitting(true);
     try {
       const response = await fetch(`/api/materials/task/${materialTaskId}`, {
@@ -278,7 +299,8 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                     />
                   </div>
                 </div>
-                 <div className="space-y-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
                     <Label htmlFor="profit-margin-new">Margen de Utilidad para esta tarea (%) (Opcional)</Label>
                     <Input
                       id="profit-margin-new"
@@ -287,19 +309,31 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                       step="0.1"
                       value={profitMargin}
                       onChange={(e) => setProfitMargin(e.target.value)}
-                      placeholder="Ej. 10 (para 10%, si se deja vacío usará el del material)"
+                      placeholder="Ej. 10 (si se deja vacío usará el del material)"
                     />
                   </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="purchased-value-new">Valor de Compra para esta Asignación (Opcional)</Label>
+                    <Input
+                      id="purchased-value-new"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={purchasedValueForTaskInput}
+                      onChange={(e) => setPurchasedValueForTaskInput(e.target.value)}
+                      placeholder="Ej. 50000"
+                    />
+                  </div>
+                </div>
                 <Button type="submit" disabled={isSubmitting || isLoadingProjectMaterials || projectMaterials.length === 0}>
                   {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PackagePlus className="h-4 w-4 mr-2" />}
                   Asignar Material
                 </Button>
               </form>
             ) : (
-                // Edit Form
                 <div className="space-y-4 p-4 border rounded-md">
-                    <h3 className="text-lg font-medium">Editar Material Asignado: {(editingMaterialTask.materialProjectId as any)?.referenceCode}</h3>
-                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <h3 className="text-lg font-medium">Editar Material Asignado: {((editingMaterialTask.materialProjectId as MaterialProject)?.referenceCode) || 'N/A'}</h3>
+                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <Label htmlFor="edit-quantity-used">Cantidad Usada</Label>
                             <Input
@@ -322,6 +356,19 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                                 step="0.1"
                                 placeholder="Ej: 10 (para 10%)"
                                 value={editFormData.profitMarginForTaskMaterial ?? ''}
+                                onChange={handleEditInputChange}
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="edit-purchased-value">Valor Compra Tarea</Label>
+                            <Input
+                                id="edit-purchased-value"
+                                name="purchasedValueForTask"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="Ej: 45000"
+                                value={editFormData.purchasedValueForTask ?? ''}
                                 onChange={handleEditInputChange}
                             />
                         </div>
@@ -351,25 +398,21 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                       <TableHead>Cód. Ref.</TableHead>
                       <TableHead>Descripción</TableHead>
                       <TableHead className="text-right">Cant. Usada</TableHead>
-                      <TableHead className="text-right">Costo Material</TableHead>
-                      <TableHead className="text-right">Utilidad (%)</TableHead>
-                       <TableHead className="text-right">Valor Compra Tarea</TableHead>
+                      <TableHead className="text-right">Costo Material Tarea</TableHead>
+                      <TableHead className="text-right">Utilidad Tarea (%)</TableHead>
+                      <TableHead className="text-right">Valor Compra Tarea</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {assignedMaterials.map((mt) => (
                       <TableRow key={mt._id}>
-                        <TableCell>{(mt.materialProjectId as any)?.referenceCode || 'N/A'}</TableCell>
-                        <TableCell>{(mt.materialProjectId as any)?.description || 'N/A'}</TableCell>
+                        <TableCell>{(mt.materialProjectId as MaterialProject)?.referenceCode || 'N/A'}</TableCell>
+                        <TableCell>{(mt.materialProjectId as MaterialProject)?.description || 'N/A'}</TableCell>
                         <TableCell className="text-right">{mt.quantityUsed.toLocaleString()}</TableCell>
                         <TableCell className="text-right">{mt.materialCostForTask?.toLocaleString() ?? 'N/A'}</TableCell>
-                        <TableCell className="text-right">{mt.profitMarginForTaskMaterial?.toLocaleString() ?? '-'}%</TableCell>
-                        <TableCell className="text-right">
-                            {typeof (mt.materialProjectId as any)?.purchasedValue === 'number' && typeof mt.quantityUsed === 'number' && typeof (mt.materialProjectId as any)?.quantity === 'number' && (mt.materialProjectId as any)?.quantity !== 0
-                                ? (((mt.materialProjectId as any).purchasedValue / (mt.materialProjectId as any).quantity) * mt.quantityUsed).toLocaleString()
-                                : 'N/A'}
-                        </TableCell>
+                        <TableCell className="text-right">{mt.profitMarginForTaskMaterial?.toLocaleString() ?? '-'}</TableCell>
+                        <TableCell className="text-right">{mt.purchasedValueForTask?.toLocaleString() ?? 'N/A'}</TableCell>
                         <TableCell className="text-right space-x-1">
                            <Button variant="ghost" size="icon" onClick={() => setEditingMaterialTask(mt)} disabled={isSubmitting || !!editingMaterialTask}>
                                 <Edit className="h-4 w-4" />
@@ -387,7 +430,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                                     <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                                     <AlertDialogDescription>
                                         Esta acción no se puede deshacer. Esto eliminará permanentemente el material asignado
-                                        <span className="font-semibold"> {(mt.materialProjectId as any)?.referenceCode}</span> de esta tarea.
+                                        <span className="font-semibold"> {(mt.materialProjectId as MaterialProject)?.referenceCode}</span> de esta tarea.
                                     </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -416,3 +459,4 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
     </Dialog>
   );
 };
+

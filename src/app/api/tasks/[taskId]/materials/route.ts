@@ -1,3 +1,4 @@
+
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -18,6 +19,7 @@ const materialTaskCreateSchema = z.object({
   }),
   quantityUsed: z.number().min(0.000001, "Quantity used must be greater than 0"), // Ensure quantity is positive
   profitMarginForTaskMaterial: z.number().min(0).optional().nullable(), // Optional: profit margin for this specific assignment
+  purchasedValueForTask: z.number().optional().nullable(), // Optional: specific purchased value for this task
   // materialCostForTask will be derived or copied
 });
 
@@ -39,7 +41,7 @@ export async function GET(request: Request, { params }: { params: Params }) {
       .populate({
           path: 'materialProjectId',
           model: MaterialProject, // Explicitly specify the model for population
-          select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin purchasedValue' // Select fields you need from MaterialProject
+          select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin purchasedValue quantity' // Select fields you need from MaterialProject
       })
       .sort({ createdAt: -1 });
     
@@ -114,6 +116,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
       quantityUsed: parsedBody.quantityUsed,
       materialCostForTask: materialCostForTask,
       profitMarginForTaskMaterial: profitMarginToUse, // Use determined profit margin
+      purchasedValueForTask: parsedBody.purchasedValueForTask ?? null, // Save specific purchased value
     });
 
     await newMaterialTask.save();
@@ -123,7 +126,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
       .populate({
           path: 'materialProjectId',
           model: MaterialProject,
-          select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin purchasedValue'
+          select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin purchasedValue quantity'
       });
 
 
@@ -148,3 +151,4 @@ export async function POST(request: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
+

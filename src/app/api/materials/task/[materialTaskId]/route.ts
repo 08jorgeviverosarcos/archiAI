@@ -15,6 +15,7 @@ interface Params {
 const materialTaskUpdateSchema = z.object({
   quantityUsed: z.number().min(0.000001, "Quantity used must be greater than 0").optional(),
   profitMarginForTaskMaterial: z.number().min(0).optional().nullable(),
+  purchasedValueForTask: z.number().optional().nullable(),
   // materialProjectId and phaseId are generally not updatable this way,
   // if needs to change, it's better to delete and create a new MaterialTask
 }).strict();
@@ -37,7 +38,7 @@ export async function GET(request: Request, { params }: { params: Params }) {
         .populate({
             path: 'materialProjectId',
             model: MaterialProject,
-            select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin'
+            select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin purchasedValue quantity'
         });
 
     if (!materialTask) {
@@ -98,15 +99,17 @@ export async function PUT(request: Request, { params }: { params: Params }) {
         if (materialProject) {
             updateData.materialCostForTask = parsedBody.quantityUsed * (materialProject.estimatedUnitPrice || 0);
         } else {
-            // Handle case where MaterialProject might be deleted, though unlikely if refs are maintained
-            // Or set a default/error state for materialCostForTask
             console.warn(`MaterialProject with ID ${existingMaterialTask.materialProjectId} not found during MaterialTask update.`);
-            updateData.materialCostForTask = 0; // Or some other default
+            updateData.materialCostForTask = 0; 
         }
     }
 
     if (parsedBody.profitMarginForTaskMaterial !== undefined) {
         updateData.profitMarginForTaskMaterial = parsedBody.profitMarginForTaskMaterial;
+    }
+
+    if (parsedBody.purchasedValueForTask !== undefined) {
+        updateData.purchasedValueForTask = parsedBody.purchasedValueForTask;
     }
 
 
@@ -117,7 +120,7 @@ export async function PUT(request: Request, { params }: { params: Params }) {
     ).populate({
         path: 'materialProjectId',
         model: MaterialProject,
-        select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin'
+        select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin purchasedValue quantity'
     });
 
     if (!updatedMaterialTask) {

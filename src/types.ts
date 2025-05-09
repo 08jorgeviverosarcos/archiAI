@@ -79,12 +79,14 @@ export interface MaterialProject {
 export interface MaterialTask {
   _id?: string; // MongoDB ObjectId
   taskId: string; // Reference to Task _id
-  materialProjectId: string; // Reference to MaterialProject _id
+  materialProjectId: string | MaterialProject; // Reference to MaterialProject _id, can be populated
   phaseId: string; // Reference to the phase this task (and thus material usage) belongs to
   quantityUsed: number;
   materialCostForTask?: number; // Calculated: quantityUsed * unitPriceOfMaterialProject
   profitMarginForTaskMaterial?: number | null; // Copied from MaterialProject or task-specific
+  purchasedValueForTask?: number | null; // Specific purchased value for this task's material usage
   createdAt?: Date;
   updatedAt?: Date;
 }
+
 
