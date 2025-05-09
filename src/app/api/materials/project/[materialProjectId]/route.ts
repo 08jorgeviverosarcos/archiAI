@@ -12,14 +12,13 @@ interface Params {
 }
 
 const materialProjectUpdateSchema = z.object({
+  title: z.string().min(1, "El título es requerido").optional(),
   referenceCode: z.string().min(1, "Reference code is required").optional(),
   brand: z.string().min(1, "Brand is required").optional(),
   supplier: z.string().min(1, "Supplier is required").optional(),
   description: z.string().min(1, "Description is required").optional(),
-  quantity: z.number().min(0, "Quantity must be non-negative").optional(),
   unitOfMeasure: z.string().min(1, "Unit of measure is required").optional(),
   estimatedUnitPrice: z.number().min(0, "Estimated unit price must be non-negative").optional(),
-  purchasedValue: z.number().min(0, "Purchased value must be non-negative").optional(),
   profitMargin: z.number().min(0).optional().nullable(), // Allow null
 }).strict(); // Ensure no extra fields are passed
 
@@ -151,4 +150,3 @@ export async function DELETE(request: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
-

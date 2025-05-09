@@ -186,11 +186,11 @@ export default function ProjectMaterialsPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead>Título</TableHead>
                                     <TableHead>Cód. Ref.</TableHead>
                                     <TableHead>Descripción</TableHead>
                                     <TableHead>Marca</TableHead>
                                     <TableHead>Proveedor</TableHead>
-                                    <TableHead className="text-right">Cantidad</TableHead>
                                     <TableHead>Unidad</TableHead>
                                     <TableHead className="text-right">Precio Unit. Est.</TableHead>
                                     <TableHead className="text-right">Acciones</TableHead>
@@ -199,11 +199,11 @@ export default function ProjectMaterialsPage() {
                             <TableBody>
                                 {materials.map((material) => (
                                     <TableRow key={material._id}>
-                                        <TableCell className="font-medium">{material.referenceCode}</TableCell>
+                                        <TableCell className="font-medium">{material.title}</TableCell>
+                                        <TableCell>{material.referenceCode}</TableCell>
                                         <TableCell>{material.description}</TableCell>
                                         <TableCell>{material.brand}</TableCell>
                                         <TableCell>{material.supplier}</TableCell>
-                                        <TableCell className="text-right">{material.quantity}</TableCell>
                                         <TableCell>{material.unitOfMeasure}</TableCell>
                                         <TableCell className="text-right">{(material.estimatedUnitPrice ?? 0).toLocaleString()}</TableCell>
                                         <TableCell className="text-right space-x-1">
@@ -224,7 +224,7 @@ export default function ProjectMaterialsPage() {
                                                         <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                                                         <AlertDialogDescription>
                                                             Esta acción no se puede deshacer. Esto eliminará permanentemente el material
-                                                            <span className="font-semibold"> {material.referenceCode}</span>.
+                                                            <span className="font-semibold"> {material.title} ({material.referenceCode})</span>.
                                                         </AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>

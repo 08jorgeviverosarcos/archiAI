@@ -1,3 +1,4 @@
+
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -40,7 +41,7 @@ export async function GET(request: Request, { params }: { params: Params }) {
       .populate({
           path: 'materialProjectId',
           model: MaterialProject, // Explicitly specify the model for population
-          select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin purchasedValue quantity' // Select fields you need from MaterialProject
+          select: 'title referenceCode description unitOfMeasure estimatedUnitPrice profitMargin' // Updated select
       })
       .sort({ createdAt: -1 });
     
@@ -134,7 +135,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
       .populate({
           path: 'materialProjectId',
           model: MaterialProject,
-          select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin purchasedValue quantity'
+          select: 'title referenceCode description unitOfMeasure estimatedUnitPrice profitMargin' // Updated select
       });
 
 
@@ -159,4 +160,3 @@ export async function POST(request: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
-

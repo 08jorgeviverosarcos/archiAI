@@ -1,3 +1,4 @@
+
 export interface ProjectDetails {
   _id?: string; // Optional: ObjectId from MongoDB
   projectId?: string // Optional: Keep if used elsewhere, but _id is standard
@@ -62,14 +63,13 @@ export interface Task {
 export interface MaterialProject {
   _id?: string; // MongoDB ObjectId
   projectId: string; // Reference to Project _id
+  title: string; // Added title
   referenceCode: string;
   brand: string;
   supplier: string;
   description: string;
-  quantity: number;
   unitOfMeasure: string;
   estimatedUnitPrice: number;
-  purchasedValue: number; // Total value for the quantity purchased
   profitMargin?: number | null;
   createdAt?: Date;
   updatedAt?: Date;
@@ -88,5 +88,3 @@ export interface MaterialTask {
   createdAt?: Date;
   updatedAt?: Date;
 }
-
-

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -128,7 +129,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
     }
     return projectMaterials.filter(material =>
       material.referenceCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      material.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      material.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       material.brand.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [projectMaterials, searchTerm]);
@@ -292,7 +293,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                         <Input
                         id="material-search"
                         type="text"
-                        placeholder="Buscar por Cód. Ref., Descripción, Marca..."
+                        placeholder="Buscar por Título, Cód. Ref., Marca..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="flex-grow"
@@ -305,18 +306,18 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                         <Table>
                           <TableHeader>
                             <TableRow>
+                              <TableHead>Título</TableHead>
                               <TableHead>Cód. Ref.</TableHead>
-                              <TableHead>Descripción</TableHead>
-                              <TableHead>Disp.</TableHead>
+                              <TableHead>Unidad</TableHead>
                               <TableHead className="text-right">Acción</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {filteredProjectMaterials.map((material) => (
                               <TableRow key={material._id}>
+                                <TableCell>{material.title}</TableCell>
                                 <TableCell>{material.referenceCode}</TableCell>
-                                <TableCell>{material.description}</TableCell>
-                                <TableCell>{material.quantity} {material.unitOfMeasure}</TableCell>
+                                <TableCell>{material.unitOfMeasure}</TableCell>
                                 <TableCell className="text-right">
                                   <Button type="button" size="sm" onClick={() => handleSelectMaterialFromTable(material._id!)}>
                                     Seleccionar
@@ -337,7 +338,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                   <div className="space-y-2 p-3 border rounded-md bg-muted/50">
                     <p className="text-sm font-medium">Material Seleccionado:</p>
                     <p className="text-sm">
-                      <span className="font-semibold">{getSelectedMaterialDetails()?.referenceCode}</span> - {getSelectedMaterialDetails()?.description}
+                      <span className="font-semibold">{getSelectedMaterialDetails()?.title}</span> ({getSelectedMaterialDetails()?.referenceCode})
                     </p>
                     <Button type="button" variant="outline" size="sm" onClick={() => {setSelectedMaterialProject(''); setSearchTerm('');}}>
                       Cambiar Material
@@ -399,7 +400,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
               </form>
             ) : (
               <div className="space-y-4 p-1 border rounded-md">
-                  <h3 className="text-lg font-medium">Editar Material Asignado: {((editingMaterialTask.materialProjectId as MaterialProject)?.referenceCode) || 'N/A'}</h3>
+                  <h3 className="text-lg font-medium">Editar Material Asignado: {((editingMaterialTask.materialProjectId as MaterialProject)?.title) || 'N/A'}</h3>
                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                           <Label htmlFor="edit-quantity-used">Cantidad Usada</Label>
@@ -462,8 +463,8 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>Título Material</TableHead>
                         <TableHead>Cód. Ref.</TableHead>
-                        <TableHead>Descripción</TableHead>
                         <TableHead className="text-right">Cant. Usada</TableHead>
                         <TableHead className="text-right">Costo Material Tarea</TableHead>
                         <TableHead className="text-right">Utilidad Tarea (%)</TableHead>
@@ -474,8 +475,8 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                     <TableBody>
                       {assignedMaterials.map((mt) => (
                         <TableRow key={mt._id}>
+                          <TableCell>{(mt.materialProjectId as MaterialProject)?.title || 'N/A'}</TableCell>
                           <TableCell>{(mt.materialProjectId as MaterialProject)?.referenceCode || 'N/A'}</TableCell>
-                          <TableCell>{(mt.materialProjectId as MaterialProject)?.description || 'N/A'}</TableCell>
                           <TableCell className="text-right">{mt.quantityUsed.toLocaleString()}</TableCell>
                           <TableCell className="text-right">{mt.materialCostForTask?.toLocaleString() ?? 'N/A'}</TableCell>
                           <TableCell className="text-right">{mt.profitMarginForTaskMaterial?.toLocaleString() ?? '-'}</TableCell>
@@ -497,7 +498,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                                       <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                                       <AlertDialogDescription>
                                           Esta acción no se puede deshacer. Esto eliminará permanentemente el material asignado
-                                          <span className="font-semibold"> {(mt.materialProjectId as MaterialProject)?.referenceCode}</span> de esta tarea.
+                                          <span className="font-semibold"> {(mt.materialProjectId as MaterialProject)?.title} ({(mt.materialProjectId as MaterialProject)?.referenceCode})</span> de esta tarea.
                                       </AlertDialogDescription>
                                       </AlertDialogHeader>
                                       <AlertDialogFooter>

@@ -9,15 +9,14 @@ export interface IMaterialProject extends MaterialProjectType, Document {
 const materialProjectSchema = new Schema<IMaterialProject>(
   {
     projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true, index: true },
+    title: { type: String, required: true }, // Added title
     referenceCode: { type: String, required: true },
     brand: { type: String, required: true },
     supplier: { type: String, required: true },
     description: { type: String, required: true },
-    quantity: { type: Number, required: true, min: 0, default: 0 },
     unitOfMeasure: { type: String, required: true },
     estimatedUnitPrice: { type: Number, required: true, min: 0, default: 0 },
-    purchasedValue: { type: Number, required: true, min: 0, default: 0 }, // Total value for the purchased quantity
-    profitMargin: { type: Number, min: 0, default: 0 },
+    profitMargin: { type: Number, min: 0, default: 0, nullable: true }, // Allow null
   },
   {
     timestamps: true, // Automatically adds createdAt and updatedAt

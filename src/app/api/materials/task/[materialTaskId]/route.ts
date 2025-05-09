@@ -38,7 +38,7 @@ export async function GET(request: Request, { params }: { params: Params }) {
         .populate({
             path: 'materialProjectId',
             model: MaterialProject,
-            select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin purchasedValue quantity'
+            select: 'title referenceCode description unitOfMeasure estimatedUnitPrice profitMargin' // Updated select
         });
 
     if (!materialTask) {
@@ -120,7 +120,7 @@ export async function PUT(request: Request, { params }: { params: Params }) {
     ).populate({
         path: 'materialProjectId',
         model: MaterialProject,
-        select: 'referenceCode description unitOfMeasure estimatedUnitPrice profitMargin purchasedValue quantity'
+        select: 'title referenceCode description unitOfMeasure estimatedUnitPrice profitMargin' // Updated select
     });
 
     if (!updatedMaterialTask) {
@@ -178,4 +178,3 @@ export async function DELETE(request: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
-

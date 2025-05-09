@@ -13,14 +13,13 @@ interface Params {
 }
 
 const materialProjectCreateSchema = z.object({
+  title: z.string().min(1, "El título es requerido"),
   referenceCode: z.string().min(1, "Reference code is required"),
   brand: z.string().min(1, "Brand is required"),
   supplier: z.string().min(1, "Supplier is required"),
   description: z.string().min(1, "Description is required"),
-  quantity: z.number().min(0, "Quantity must be non-negative").default(0),
   unitOfMeasure: z.string().min(1, "Unit of measure is required"),
   estimatedUnitPrice: z.number().min(0, "Estimated unit price must be non-negative").default(0),
-  purchasedValue: z.number().min(0, "Purchased value must be non-negative").default(0),
   profitMargin: z.number().min(0).optional().nullable().default(null), // Allow null, default to null
 });
 
@@ -105,4 +104,3 @@ export async function POST(request: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
-
