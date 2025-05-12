@@ -92,8 +92,9 @@ Asegúrate de que:
 4. Los nombres de las fases y tareas deben estar en español. Las duraciones y costos deben ser números.
 
 Responde únicamente en formato JSON que cumpla con el schema de salida especificado.
-Output schema:
-${JSON.stringify(GenerateInitialPlanOutputSchema.openapi('GenerateInitialPlanOutputSchema'), null, 2)}
+El schema de salida define un array de objetos, donde cada objeto representa una fase.
+Cada fase tiene 'phaseName', 'estimatedDuration', 'estimatedCost', y un array 'tasks'.
+Cada tarea en 'tasks' tiene 'taskName', 'estimatedDuration', y 'estimatedCost'.
 `,
 });
 
@@ -118,3 +119,4 @@ const generateInitialPlanFlow = ai.defineFlow<
     return output;
   }
 );
+
