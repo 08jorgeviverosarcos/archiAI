@@ -1,8 +1,7 @@
-
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ProjectDetails, InitialPlanPhase, Task, FrontendInitialPlanPhase, FrontendGeneratedPlanResponse } from '@/types'; // Updated types
+import { ProjectDetails, InitialPlanPhase, Task, FrontendInitialPlanPhase } from '@/types'; // Updated types
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -10,14 +9,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ArrowRight, ArrowLeft, AlertCircle, Trash2, Plus, GripVertical, ListTree, MinusCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { DndProvider, useDrag, useDrop, DropTargetMonitor } from 'react-dnd';
+import { DndProvider, useDrag, useDrop, DropTargetMonitor, XYCoord } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Accordion, AccordionContent, AccordionTrigger } from "@/components/ui/accordion";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
 
 
 interface PlanDisplayProps {
   projectDetails: ProjectDetails | null;
-  // initialPlan is now an array of FrontendInitialPlanPhase which includes tasks
   initialPlan: FrontendInitialPlanPhase[] | null;
   initialPlanId: string | null;
   projectId: string | null;
@@ -26,11 +25,11 @@ interface PlanDisplayProps {
 
 const ItemTypes = {
   PHASE: 'phase',
-  TASK: 'task', // For potential future task reordering within a phase
+  TASK: 'task',
 };
 
 interface DraggableRowProps {
-  phase: FrontendInitialPlanPhase; // Type updated to include tasks
+  phase: FrontendInitialPlanPhase; 
   index: number;
   moveRow: (dragIndex: number, hoverIndex: number) => void;
   handlePhaseNameChange: (index: number, newName: string) => void;
@@ -80,7 +79,7 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
       if (dragIndex === hoverIndex) return;
       const hoverBoundingRect = ref.current?.getBoundingClientRect();
       const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
-      const clientOffset = monitor.getClientOffset();
+      const clientOffset = monitor.getClientOffset() as XYCoord; // Added type assertion
       if (!clientOffset) return;
       const hoverClientY = clientOffset.y - hoverBoundingRect.top;
       if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY) return;
@@ -104,7 +103,6 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
     <>
     <TableRow
       ref={ref}
-      key={phaseId}
       style={{ opacity: isDragging ? 0.5 : 1 }}
       data-handler-id={handlerId?.toString()}
       className="bg-muted/20 hover:bg-muted/40"
@@ -150,9 +148,8 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
         </Button>
       </TableCell>
     </TableRow>
-    {/* This TableRow will contain the AccordionContent for tasks */}
     <TableRow>
-        <TableCell colSpan={6} className="p-0"> {/* ColSpan should match number of columns in header */}
+        <TableCell colSpan={6} className="p-0"> 
             <AccordionContent className="bg-background">
                  <div className="p-4 space-y-3">
                     <h4 className="text-sm font-semibold text-muted-foreground">Tareas de "{phase.phaseName}"</h4>
@@ -170,7 +167,7 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
                                 {phase.tasks.map((task, taskIndex) => (
                                     <TableRow key={`task-${index}-${taskIndex}`}>
                                         <TableCell>
-                                            <Input type="text" value={task.taskName} onChange={(e) => handleTaskChange(index, taskIndex, 'title', e.target.value)} className="w-full text-xs"/>
+                                            <Input type="text" value={task.title} onChange={(e) => handleTaskChange(index, taskIndex, 'title', e.target.value)} className="w-full text-xs"/>
                                         </TableCell>
                                         <TableCell>
                                             <Input type="number" value={task.estimatedDuration === 0 ? '' : task.estimatedDuration} onChange={(e) => handleTaskChange(index, taskIndex, 'estimatedDuration', Number(e.target.value))} className="w-full text-xs" min="0"/>
@@ -204,7 +201,7 @@ const DraggableTableRow: React.FC<DraggableRowProps> = ({
 
 export const PlanDisplay: React.FC<PlanDisplayProps> = ({
   projectDetails,
-  initialPlan, // This is now FrontendInitialPlanPhase[]
+  initialPlan, 
   initialPlanId,
   projectId,
   onGoBack,
@@ -220,10 +217,9 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
         if (initialPlan) {
             const planArray = Array.isArray(initialPlan) ? initialPlan : [];
             const sortedPlan = [...planArray].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-            // Ensure tasks also have some default structure if not provided by AI
             const planWithTasksEnsured = sortedPlan.map(phase => ({
                 ...phase,
-                tasks: phase.tasks || [] // Ensure tasks array exists
+                tasks: phase.tasks || [] 
             }));
             setEditablePlan(planWithTasksEnsured);
             console.log("PlanDisplay: Editable plan state initialized/updated with sorted data:", planWithTasksEnsured);
@@ -237,10 +233,9 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
     useEffect(() => {
         if (editablePlan) {
             const calculatedTotalCost = editablePlan.reduce((sum, phase) => {
-                // Sum of task costs for the phase, or phase cost if no tasks
                 const phaseCost = phase.tasks && phase.tasks.length > 0
-                    ? phase.tasks.reduce((taskSum, task) => taskSum + (task.estimatedCost || 0), 0)
-                    : (phase.estimatedCost || 0);
+                    ? phase.tasks.reduce((taskSum, task) => taskSum + (Number(task.estimatedCost) || 0), 0)
+                    : (Number(phase.estimatedCost) || 0);
                 return sum + phaseCost;
             }, 0);
             setTotalCost(calculatedTotalCost);
@@ -285,13 +280,14 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
             if (pIdx === phaseIndex) {
                 const updatedTasks = phase.tasks.map((task, tIdx) => {
                     if (tIdx === taskIndex) {
-                        return { ...task, [field]: value };
+                         // For title, direct assignment. For others, convert to number.
+                        const newValue = (field === 'title') ? value : Number(value);
+                        return { ...task, [field]: newValue };
                     }
                     return task;
                 });
-                // Recalculate phase cost and duration based on its tasks
                 const newPhaseCost = updatedTasks.reduce((sum, t) => sum + (Number(t.estimatedCost) || 0), 0);
-                const newPhaseDuration = updatedTasks.reduce((sum, t) => sum + (Number(t.estimatedDuration) || 0), 0); // Simple sum, can be more complex
+                const newPhaseDuration = updatedTasks.reduce((sum, t) => sum + (Number(t.estimatedDuration) || 0), 0); 
                 return { ...phase, tasks: updatedTasks, estimatedCost: newPhaseCost, estimatedDuration: newPhaseDuration };
             }
             return phase;
@@ -304,10 +300,24 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
         if (!prevPlan) return null;
         return prevPlan.map((phase, pIdx) => {
             if (pIdx === phaseIndex) {
-                const newTask = {
-                    taskName: 'Nueva Tarea',
+                const newTask: Task = {
+                    // _id will be assigned by DB
+                    projectId: projectDetails?._id || '', // Assuming projectDetails is available and has _id
+                    phaseUUID: phase.phaseId,
+                    title: 'Nueva Tarea', // Default title
                     estimatedDuration: 0,
                     estimatedCost: 0,
+                    quantity: 1, // Default quantity
+                    unitOfMeasure: 'unidad', // Default unit
+                    unitPrice: 0, // Default unit price
+                    status: 'Pendiente', // Default status
+                    // Optional fields can be omitted or set to null/default
+                    description: '',
+                    profitMargin: null,
+                    laborCost: null,
+                    executionPercentage: 0,
+                    startDate: null,
+                    endDate: null,
                 };
                 return { ...phase, tasks: [...phase.tasks, newTask] };
             }
@@ -322,7 +332,6 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
         return prevPlan.map((phase, pIdx) => {
             if (pIdx === phaseIndex) {
                 const updatedTasks = phase.tasks.filter((_, tIdx) => tIdx !== taskIndex);
-                 // Recalculate phase cost and duration
                 const newPhaseCost = updatedTasks.reduce((sum, t) => sum + (Number(t.estimatedCost) || 0), 0);
                 const newPhaseDuration = updatedTasks.reduce((sum, t) => sum + (Number(t.estimatedDuration) || 0), 0);
                 return { ...phase, tasks: updatedTasks, estimatedCost: newPhaseCost, estimatedDuration: newPhaseDuration };
@@ -340,7 +349,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
             phaseName: 'Nueva Fase',
             estimatedDuration: 0,
             estimatedCost: 0,
-            tasks: [], // Initialize with an empty tasks array
+            tasks: [], 
             order: newOrder,
         };
         setEditablePlan(prevPlan => (prevPlan ? [...prevPlan, newPhase] : [newPhase]));
@@ -378,53 +387,26 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
       });
       return;
     }
-
-    // Prepare data for saving: phases and tasks will be handled by backend
-    // The frontend sends the editablePlan structure which includes tasks within phases.
-    // The backend will then process this: update InitialPlan (phases only) and create/update Task documents.
-    const planToSave = editablePlan.map((phase, index) => ({
-         ...phase,
-         order: index + 1,
-         // Ensure tasks are in the format expected by the AI output schema for consistency if needed,
-         // or simply pass them as is for the backend to process into Task documents.
-         // The backend currently expects the AI output format.
+    
+    const planToSaveForApi = editablePlan.map((phase, index) => ({
+      _id: phase._id, // Keep existing _id if present, for updates
+      phaseId: phase.phaseId,
+      phaseName: phase.phaseName,
+      estimatedDuration: phase.estimatedDuration,
+      estimatedCost: phase.estimatedCost,
+      order: index + 1,
+      // Do not send tasks here, tasks are managed separately by their own API endpoints
+      // Or if PUT /api/generate-plan is enhanced to handle tasks, include them
     }));
 
-    console.log("PlanDisplay: Saving plan with ID:", initialPlanId, "Data to send:", planToSave);
+    console.log("PlanDisplay: Saving plan with ID:", initialPlanId, "Data to send (phases only for PUT):", planToSaveForApi);
 
     setIsSaving(true);
     try {
-      // The PUT request to /api/generate-plan might need adjustment
-      // if it's intended to also update/create tasks based on the nested structure.
-      // Current PUT in API is simpler and only updates phase details.
-      // For a full save of phases and tasks, the backend POST logic is more relevant,
-      // but we are PUTTING to an existing initialPlanId.
-      // This might require a new API endpoint or modification of the PUT handler.
-      // For now, assuming PUT will just update phase properties based on `planToSave` structure.
-      // The backend's PUT needs to be robust enough to handle the tasks array if it's meant to.
-
-      // Let's assume for now the PUT to /api/generate-plan updates the phase details.
-      // And task creation/updates would happen separately or the PUT endpoint is enhanced.
-      // The most straightforward for this flow is that the PUT updates the InitialPlan document's phases.
-      // The tasks were already created during the POST. If tasks are modified here,
-      // we'd need to send updates for those tasks too.
-
-      // Simplification: We save the updated phase structure. Task creation/update is complex here.
-      // Let's stick to saving the phase structure. The AI POST created initial tasks.
-      // Editing tasks from this screen would require more targeted API calls to task endpoints.
-      const phasesOnlyToSave = planToSave.map(p => ({
-        phaseId: p.phaseId,
-        phaseName: p.phaseName,
-        estimatedDuration: p.estimatedDuration,
-        estimatedCost: p.estimatedCost,
-        order: p.order,
-      }));
-
-
       const response = await fetch('/api/generate-plan', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initialPlanId: initialPlanId, initialPlan: phasesOnlyToSave }), // Sending phases without tasks for PUT
+        body: JSON.stringify({ initialPlanId: initialPlanId, initialPlan: planToSaveForApi }), 
       });
 
       if (!response.ok) {
@@ -490,9 +472,12 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
                   </TableHeader>
                   <TableBody>
                     {editablePlan.map((phase, index) => (
-                       <AccordionItem value={phase.phaseId || `phase-item-${index}`} key={phase.phaseId || `phase-item-${index}`} className="border-b-0">
+                       <AccordionPrimitive.Item 
+                          key={phase.phaseId || `phase-item-${index}`} 
+                          value={phase.phaseId || `phase-item-${index}`} 
+                          asChild
+                        >
                             <DraggableTableRow
-                                key={phase.phaseId || `phase-${index}`}
                                 index={index}
                                 phase={phase}
                                 moveRow={moveRow}
@@ -505,7 +490,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
                                 handleDeleteTaskFromPhase={handleDeleteTaskFromPhase}
                                 currency={projectDetails?.currency ?? '---'}
                             />
-                        </AccordionItem>
+                        </AccordionPrimitive.Item>
                     ))}
                   </TableBody>
                 </Table>
@@ -552,4 +537,3 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
     </DndProvider>
   );
 };
-
