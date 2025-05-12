@@ -18,10 +18,10 @@ const unitsOfMeasure = [
 
 const materialProjectCreateSchema = z.object({
   title: z.string().min(1, "El título es requerido"),
-  referenceCode: z.string().min(1, "Reference code is required"),
-  brand: z.string().min(1, "Brand is required"),
-  supplier: z.string().min(1, "Supplier is required"),
-  description: z.string().min(1, "Description is required"),
+  referenceCode: z.string().optional(), // Optional
+  brand: z.string().optional(), // Optional
+  supplier: z.string().optional(), // Optional
+  description: z.string().optional(), // Optional
   unitOfMeasure: z.enum(unitsOfMeasure, {
     required_error: "La unidad de medida es requerida.",
   }),
@@ -81,7 +81,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
     const body = await request.json();
     const parsedBody = materialProjectCreateSchema.parse(body);
 
-    const newMaterialProject = new MaterialProject({
+    const newMaterialProjectData = {
       projectId: new mongoose.Types.ObjectId(projectId),
       title: parsedBody.title,
       referenceCode: parsedBody.referenceCode,
@@ -91,8 +91,28 @@ export async function POST(request: Request, { params }: { params: Params }) {
       unitOfMeasure: parsedBody.unitOfMeasure,
       estimatedUnitPrice: parsedBody.estimatedUnitPrice,
       profitMargin: parsedBody.profitMargin,
-    });
+    };
 
+    // Only include referenceCode in findOne if it's provided in parsedBody
+    const query: { projectId: mongoose.Types.ObjectId; referenceCode?: string } = {
+      projectId: new mongoose.Types.ObjectId(projectId),
+    };
+    if (parsedBody.referenceCode) {
+      query.referenceCode = parsedBody.referenceCode;
+    }
+
+    // Check for duplicate referenceCode for this project only if referenceCode is given
+    if (parsedBody.referenceCode) {
+        const existingMaterialWithRefCode = await MaterialProject.findOne(query);
+        if (existingMaterialWithRefCode) {
+             return new NextResponse(JSON.stringify({ message: 'A material with this reference code already exists for this project.' }), {
+                status: 409, // Conflict
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+    }
+
+    const newMaterialProject = new MaterialProject(newMaterialProjectData);
     await newMaterialProject.save();
 
     return NextResponse.json({ materialProject: newMaterialProject }, { status: 201 });
@@ -104,17 +124,12 @@ export async function POST(request: Request, { params }: { params: Params }) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    if (error instanceof mongoose.Error.MongoServerError && error.code === 11000) {
-      // Duplicate key error (e.g. referenceCode not unique for project)
-      return new NextResponse(JSON.stringify({ message: 'A material with this reference code already exists for this project.' }), {
-        status: 409, // Conflict
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+    // Note: The explicit duplicate key error check (11000) might be less reliable if referenceCode is optional and null/undefined.
+    // The check above is more specific for when referenceCode is provided.
+    // Mongoose's `sparse: true` index helps allow multiple nulls/undefined for optional unique fields.
     return new NextResponse(JSON.stringify({
       message: 'Failed to create material.',
       error: error instanceof Error ? error.message : String(error),
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
-

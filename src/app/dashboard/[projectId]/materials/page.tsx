@@ -43,10 +43,10 @@ import { formatNumberForInput } from '@/lib/formattingUtils';
 
 const materialCsvStructure = [
     { header: 'title', description: 'Nombre descriptivo del material', required: true },
-    { header: 'referenceCode', description: 'Código único para el material dentro del proyecto', required: true },
-    { header: 'brand', description: 'Marca del material', required: true },
-    { header: 'supplier', description: 'Proveedor del material', required: true },
-    { header: 'description', description: 'Descripción detallada del material', required: true },
+    { header: 'referenceCode', description: 'Código único para el material dentro del proyecto', required: false },
+    { header: 'brand', description: 'Marca del material', required: false },
+    { header: 'supplier', description: 'Proveedor del material', required: false },
+    { header: 'description', description: 'Descripción detallada del material', required: false },
     { header: 'unitOfMeasure', description: 'Unidad de medida (ej. m, m², kg, unidad)', required: true },
     { header: 'estimatedUnitPrice', description: 'Precio unitario estimado (número)', required: true },
     { header: 'profitMargin', description: 'Margen de utilidad en % (ej. 10 para 10%, opcional)', required: false },
@@ -132,7 +132,7 @@ export default function ProjectMaterialsPage() {
         handleFormClose();
         toast({
           title: editingMaterial ? 'Material Actualizado' : 'Material Creado',
-          description: `El material "${savedMaterial.referenceCode}" ha sido guardado exitosamente.`,
+          description: `El material "${savedMaterial.referenceCode || savedMaterial.title}" ha sido guardado exitosamente.`,
         });
     };
 
@@ -265,10 +265,10 @@ export default function ProjectMaterialsPage() {
                                 {filteredMaterials.map((material) => (
                                     <TableRow key={material._id}>
                                         <TableCell className="font-medium">{material.title}</TableCell>
-                                        <TableCell>{material.referenceCode}</TableCell>
-                                        <TableCell>{material.description}</TableCell>
-                                        <TableCell>{material.brand}</TableCell>
-                                        <TableCell>{material.supplier}</TableCell>
+                                        <TableCell>{material.referenceCode || '-'}</TableCell>
+                                        <TableCell>{material.description || '-'}</TableCell>
+                                        <TableCell>{material.brand || '-'}</TableCell>
+                                        <TableCell>{material.supplier || '-'}</TableCell>
                                         <TableCell>{material.unitOfMeasure}</TableCell>
                                         <TableCell className="text-right">{formatNumberForInput(material.estimatedUnitPrice ?? 0)}</TableCell>
                                         <TableCell className="text-right space-x-1">
@@ -289,7 +289,7 @@ export default function ProjectMaterialsPage() {
                                                         <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                                                         <AlertDialogDescription>
                                                             Esta acción no se puede deshacer. Esto eliminará permanentemente el material
-                                                            <span className="font-semibold"> {material.title} ({material.referenceCode})</span>.
+                                                            <span className="font-semibold"> {material.title} ({material.referenceCode || 'Sin Cód. Ref.'})</span>.
                                                         </AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
@@ -332,4 +332,3 @@ export default function ProjectMaterialsPage() {
         </div>
     );
 }
-

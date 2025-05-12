@@ -20,10 +20,10 @@ const unitsOfMeasureValues = [
 // Schema for a single row in the CSV
 const csvMaterialRowSchema = z.object({
   title: z.string().min(1, "El título es requerido"),
-  referenceCode: z.string().min(1, "El código de referencia es requerido"),
-  brand: z.string().min(1, "La marca es requerida"),
-  supplier: z.string().min(1, "El proveedor es requerido"),
-  description: z.string().min(1, "La descripción es requerida"),
+  referenceCode: z.string().optional().nullable(), // Optional
+  brand: z.string().optional().nullable(), // Optional
+  supplier: z.string().optional().nullable(), // Optional
+  description: z.string().optional().nullable(), // Optional
   unitOfMeasure: z.enum(unitsOfMeasureValues, {
     errorMap: () => ({ message: "La unidad de medida es inválida." }),
   }),
@@ -113,8 +113,8 @@ export async function POST(request: Request, { params }: { params: Params }) {
     for (let i = 0; i < parsedRows.length; i++) {
       const row = parsedRows[i];
       try {
-        // Ensure all required headers are present, case-insensitive check could be added
-        const requiredHeaders = ['title', 'referenceCode', 'brand', 'supplier', 'description', 'unitOfMeasure', 'estimatedUnitPrice'];
+        // Ensure required headers are present
+        const requiredHeaders = ['title', 'unitOfMeasure', 'estimatedUnitPrice']; // Only these are strictly required now
         for(const header of requiredHeaders) {
             if(!(header in row)) {
                 throw new Error(`Falta la columna requerida: ${header}`);
@@ -126,21 +126,25 @@ export async function POST(request: Request, { params }: { params: Params }) {
         const newMaterialProjectData = {
           projectId: new mongoose.Types.ObjectId(projectId),
           ...validatedRow,
-          // profitMargin can be null if not provided or empty in CSV
+          referenceCode: validatedRow.referenceCode || null, // Ensure null if not provided
+          brand: validatedRow.brand || null,
+          supplier: validatedRow.supplier || null,
+          description: validatedRow.description || null,
           profitMargin: validatedRow.profitMargin === undefined ? null : validatedRow.profitMargin,
         };
 
-        // Check for duplicate referenceCode for this project
-        const existingMaterial = await MaterialProject.findOne({
-            projectId: newMaterialProjectData.projectId,
-            referenceCode: newMaterialProjectData.referenceCode
-        });
-
-        if (existingMaterial) {
-            errors.push({ row: i + 2, message: `El código de referencia '${validatedRow.referenceCode}' ya existe para este proyecto.` });
-            continue; // Skip this row
+        // Check for duplicate referenceCode for this project only if referenceCode is given
+        if (validatedRow.referenceCode) {
+            const existingMaterial = await MaterialProject.findOne({
+                projectId: newMaterialProjectData.projectId,
+                referenceCode: validatedRow.referenceCode
+            });
+             if (existingMaterial) {
+                errors.push({ row: i + 2, message: `El código de referencia '${validatedRow.referenceCode}' ya existe para este proyecto.` });
+                continue; // Skip this row
+            }
         }
-
+        
         const newMaterialProject = new MaterialProject(newMaterialProjectData);
         await newMaterialProject.save();
         createdMaterials.push(newMaterialProject.toObject() as MaterialProjectType);
@@ -148,7 +152,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
       } catch (error: any) {
         if (error instanceof z.ZodError) {
           errors.push({ row: i + 2, message: 'Error de validación de datos.', details: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ') });
-        } else if (error.code === 11000) { // Mongoose duplicate key error
+        } else if (error.code === 11000) { 
           errors.push({ row: i + 2, message: `Error de duplicado: ${error.message}. Esto puede suceder si el código de referencia ya existe.`});
         } else {
           errors.push({ row: i + 2, message: `Error procesando fila: ${error.message}` });
@@ -169,9 +173,9 @@ export async function POST(request: Request, { params }: { params: Params }) {
       { 
         message: `Importación completada. ${summary.successfulImports} materiales importados, ${summary.failedImports} errores.`,
         summary,
-        createdMaterials // Optionally return created materials
+        createdMaterials 
       }, 
-      { status: errors.length > 0 && createdMaterials.length === 0 ? 400 : 201 } // 201 if at least one created, 400 if all failed
+      { status: errors.length > 0 && createdMaterials.length === 0 ? 400 : 201 } 
     );
 
   } catch (error: any) {

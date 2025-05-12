@@ -18,10 +18,10 @@ const unitsOfMeasureValues = [
 // Updated schema for PUT requests: All fields are optional
 const materialProjectUpdateSchema = z.object({
   title: z.string().min(1, "El título es requerido").optional(),
-  referenceCode: z.string().min(1, "El código de referencia es requerido").optional(),
-  brand: z.string().min(1, "La marca es requerida").optional(),
-  supplier: z.string().min(1, "El proveedor es requerido").optional(),
-  description: z.string().min(1, "La descripción es requerida").optional(),
+  referenceCode: z.string().optional().nullable(), // Optional, allow null
+  brand: z.string().optional().nullable(), // Optional, allow null
+  supplier: z.string().optional().nullable(), // Optional, allow null
+  description: z.string().optional().nullable(), // Optional, allow null
   unitOfMeasure: z.enum(unitsOfMeasureValues, {
     errorMap: () => ({ message: "La unidad de medida es inválida." }),
   }).optional(),
@@ -104,7 +104,7 @@ export async function PUT(request: Request, { params }: { params: Params }) {
     // Mongoose will only update fields present in parsedBody due to $set
     const updatedMaterialProject = await MaterialProject.findByIdAndUpdate(
       materialProjectId,
-      { $set: parsedBody }, // Use parsedBody directly. If title is there, it will be updated.
+      { $set: parsedBody }, 
       { new: true, runValidators: true }
     );
 
@@ -152,10 +152,6 @@ export async function DELETE(request: Request, { params }: { params: Params }) {
     try {
         await connectDB();
         
-        // Before deleting MaterialProject, consider implications for MaterialTask documents
-        // For example, you might want to prevent deletion if it's referenced, or delete associated MaterialTasks.
-        // This example directly deletes the MaterialProject.
-
         const deletedMaterialProject = await MaterialProject.findByIdAndDelete(materialProjectId);
 
         if (!deletedMaterialProject) {

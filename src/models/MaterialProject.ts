@@ -14,11 +14,11 @@ const unitsOfMeasureValues = [
 const materialProjectSchema = new Schema<IMaterialProject>(
   {
     projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true, index: true },
-    title: { type: String, required: true }, // Added title
-    referenceCode: { type: String, required: true },
-    brand: { type: String, required: true },
-    supplier: { type: String, required: true },
-    description: { type: String, required: true },
+    title: { type: String, required: true }, 
+    referenceCode: { type: String, required: false }, // Optional
+    brand: { type: String, required: false }, // Optional
+    supplier: { type: String, required: false }, // Optional
+    description: { type: String, required: false }, // Optional
     unitOfMeasure: { type: String, required: true, enum: unitsOfMeasureValues },
     estimatedUnitPrice: { type: Number, required: true, min: 0, default: 0 },
     profitMargin: { type: Number, min: 0, default: null, nullable: true }, // Allow null
@@ -28,8 +28,8 @@ const materialProjectSchema = new Schema<IMaterialProject>(
   }
 );
 
-// Ensure referenceCode is unique per projectId
-materialProjectSchema.index({ projectId: 1, referenceCode: 1 }, { unique: true });
+// Ensure referenceCode is unique per projectId IF it's provided
+materialProjectSchema.index({ projectId: 1, referenceCode: 1 }, { unique: true, sparse: true }); // sparse allows multiple null/undefined values
 
 const MaterialProject: Model<IMaterialProject> =
   mongoose.models.MaterialProject || mongoose.model<IMaterialProject>('MaterialProject', materialProjectSchema);

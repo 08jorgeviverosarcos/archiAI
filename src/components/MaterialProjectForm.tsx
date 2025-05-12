@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -21,10 +22,10 @@ const unitsOfMeasureValues = [
 
 const materialProjectFormSchema = z.object({
   title: z.string().min(1, "El título es requerido"),
-  referenceCode: z.string().min(1, "El código de referencia es requerido"),
-  brand: z.string().min(1, "La marca es requerida"),
-  supplier: z.string().min(1, "El proveedor es requerido"),
-  description: z.string().min(1, "La descripción es requerida"),
+  referenceCode: z.string().optional().nullable(), // Optional
+  brand: z.string().optional().nullable(), // Optional
+  supplier: z.string().optional().nullable(), // Optional
+  description: z.string().optional().nullable(), // Optional
   unitOfMeasure: z.enum(unitsOfMeasureValues, {
     required_error: "La unidad de medida es requerida.",
   }),
@@ -91,18 +92,44 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
         : `/api/projects/${projectId}/materials`;
       const method = existingMaterial?._id ? 'PUT' : 'POST';
 
+      // For PUT, only send fields that have changed or are part of the schema
+      // For POST, send all data
       let payload: Partial<MaterialProjectFormData> | MaterialProjectFormData = data;
       if (method === 'PUT') {
-        payload = {};
-        for (const key in data) {
-          if (Object.prototype.hasOwnProperty.call(data, key)) {
-            const typedKey = key as keyof MaterialProjectFormData;
-            if (data[typedKey] !== undefined ) {
-                 // @ts-ignore
-                payload[typedKey] = data[typedKey];
+        payload = {}; // Initialize an empty object for PUT payload
+        // Iterate over form data keys
+        for (const key of Object.keys(data) as Array<keyof MaterialProjectFormData>) {
+            // If the field is in existingMaterial, compare values
+            if (existingMaterial && Object.prototype.hasOwnProperty.call(existingMaterial, key)) {
+                // @ts-ignore - existingMaterial might not have all keys of MaterialProjectFormData if types diverge slightly
+                if (data[key] !== existingMaterial[key]) {
+                    payload[key] = data[key];
+                }
+            } else {
+                // If the field is not in existingMaterial (e.g. new optional field being set), include it
+                 payload[key] = data[key];
             }
-          }
         }
+        // Ensure all fields from the schema are considered, even if undefined initially
+        // This is important if you want to explicitly set a field to null/undefined
+        (Object.keys(materialProjectFormSchema.shape) as Array<keyof MaterialProjectFormData>).forEach(schemaKey => {
+            if (data[schemaKey] !== undefined && !Object.prototype.hasOwnProperty.call(payload, schemaKey)) {
+                 payload[schemaKey] = data[schemaKey];
+            }
+        });
+
+        if (Object.keys(payload).length === 0) {
+            toast({
+                title: 'Sin cambios',
+                description: 'No se detectaron cambios para actualizar.',
+            });
+            setIsSubmitting(false);
+            onCancel(); // Or onMaterialSaved if preferred for consistency
+            return;
+        }
+
+      } else { // POST
+         payload = data;
       }
 
 
@@ -122,7 +149,7 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
       
       toast({
         title: existingMaterial ? 'Material Actualizado' : 'Material Creado',
-        description: `El material "${savedMaterial.referenceCode}" ha sido guardado exitosamente.`,
+        description: `El material "${savedMaterial.referenceCode || savedMaterial.title}" ha sido guardado exitosamente.`,
       });
       onMaterialSaved(savedMaterial);
     } catch (error: any) {
@@ -159,9 +186,9 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
             name="referenceCode"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Código de Referencia <Asterisk className="inline h-3 w-3 text-destructive" /></FormLabel>
+                <FormLabel>Código de Referencia</FormLabel>
                 <FormControl>
-                  <Input placeholder="Ej. LAD-001" {...field} />
+                  <Input placeholder="Ej. LAD-001 (Opcional)" {...field} value={field.value ?? ''}/>
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -174,9 +201,9 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
               name="brand"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Marca <Asterisk className="inline h-3 w-3 text-destructive" /></FormLabel>
+                  <FormLabel>Marca</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ej. Argos" {...field} />
+                    <Input placeholder="Ej. Argos (Opcional)" {...field} value={field.value ?? ''}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -187,9 +214,9 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
               name="supplier"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Proveedor <Asterisk className="inline h-3 w-3 text-destructive" /></FormLabel>
+                  <FormLabel>Proveedor</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ej. Homecenter" {...field} />
+                    <Input placeholder="Ej. Homecenter (Opcional)" {...field} value={field.value ?? ''}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -202,9 +229,9 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
             name="description"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Descripción <Asterisk className="inline h-3 w-3 text-destructive" /></FormLabel>
+                <FormLabel>Descripción</FormLabel>
                 <FormControl>
-                  <Textarea placeholder="Detalles del material..." {...field} />
+                  <Textarea placeholder="Detalles del material... (Opcional)" {...field} value={field.value ?? ''}/>
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -242,10 +269,10 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
                   <FormLabel>Precio Unit. Estimado <Asterisk className="inline h-3 w-3 text-destructive" /></FormLabel>
                   <FormControl>
                     <Input 
-                      type="text" // Changed to text
+                      type="text" 
                       placeholder="Ej. 15.000" 
                       {...field} 
-                      value={field.value === 0 ? '' : formatNumberForInput(field.value)}
+                      value={field.value === 0 && !existingMaterial?.estimatedUnitPrice ? '' : formatNumberForInput(field.value)} // Show empty if 0 and new
                       onChange={e => field.onChange(parseFormattedNumber(e.target.value) ?? 0)} 
                     />
                   </FormControl>
@@ -263,7 +290,7 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
                     <Input 
                       type="number" 
                       step="0.1" 
-                      placeholder="Ej. 10 (para 10%)" 
+                      placeholder="Ej. 10 (Opcional)" 
                       {...field} 
                       value={field.value ?? ''} 
                       onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} 
