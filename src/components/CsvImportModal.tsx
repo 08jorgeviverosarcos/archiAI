@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useRef } from 'react';
@@ -144,8 +143,8 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-grow py-2 pr-2 min-h-0"> {/* Added min-h-0 to ensure ScrollArea can shrink */}
-            <div className="space-y-4">
+        <ScrollArea className="flex-grow pr-2 min-h-0"> {/* Removed py-2 from here */}
+            <div className="space-y-4 py-2"> {/* Added py-2 to this inner div */}
                 <Alert>
                     <Info className="h-4 w-4" />
                     <AlertTitle>Estructura del CSV Esperada</AlertTitle>
@@ -211,4 +210,3 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
     </Dialog>
   );
 };
-
