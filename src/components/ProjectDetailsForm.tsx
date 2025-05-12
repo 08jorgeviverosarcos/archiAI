@@ -78,24 +78,24 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
       console.log("API response status:", response.status);
 
       if (!response.ok) {
-        let errorData = { message: `Server error: ${response.statusText}` };
+        let errorMsg = `Server error: ${response.statusText}`;
         let errorText = '';
         try {
-          // Try parsing JSON first. If successful, use its message.
-          errorData = await response.json();
-          console.error('API Error Response (JSON):', errorData);
-          // If JSON parsing is successful but there's no message, use the status text.
-          if (!errorData.message) errorData.message = `Server error: ${response.statusText}`;
-        } catch (jsonError) {
-          // If JSON parsing fails, read the response as text.
-          // Use clone() here if you might need the original response later,
-          // but in this catch block, we consume the body.
+          // Read the response body as text first
           errorText = await response.text();
-          console.error('API Error Response (Text):', errorText);
+          // Try parsing the text as JSON
+          const errorData = JSON.parse(errorText);
+          console.error('API Error Response (Parsed JSON):', errorData);
+          // If JSON parsing is successful, use its message.
+          errorMsg = errorData.message || errorMsg;
+        } catch (e) {
+          // If JSON parsing fails, use the raw text
+          console.error('API Error Response (Raw Text):', errorText);
+          console.error('Failed to parse API error response as JSON:', e);
           // Construct a message from the text response.
-          errorData.message = `Failed to generate plan. Server responded with: ${errorText.substring(0, 100)}...`;
+          errorMsg = `Failed to generate plan. Server responded with: ${errorText.substring(0, 100)}...`;
         }
-        throw new Error(errorData.message);
+        throw new Error(errorMsg);
       }
 
       // If response.ok is true, parse the JSON body
