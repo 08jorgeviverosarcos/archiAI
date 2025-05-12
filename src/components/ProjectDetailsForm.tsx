@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -10,7 +11,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { ProjectDetails, FrontendInitialPlanPhase, FrontendGeneratedPlanResponse } from '@/types';
+import { ProjectDetails, FrontendInitialPlanPhase, FrontendGeneratedPlanResponse } from '@/types'; // Updated types
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 
@@ -78,25 +79,34 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
 
       if (!response.ok) {
         let errorData = { message: `Server error: ${response.statusText}` };
+        let errorText = '';
         try {
-          errorData = await response.json(); 
+          // Try parsing JSON first. If successful, use its message.
+          errorData = await response.json();
           console.error('API Error Response (JSON):', errorData);
+          // If JSON parsing is successful but there's no message, use the status text.
+          if (!errorData.message) errorData.message = `Server error: ${response.statusText}`;
         } catch (jsonError) {
-           const errorText = await response.text(); 
+          // If JSON parsing fails, read the response as text.
+          // Use clone() here if you might need the original response later,
+          // but in this catch block, we consume the body.
+          errorText = await response.text();
           console.error('API Error Response (Text):', errorText);
-          errorData.message = `Failed to generate plan. Server responded with: ${errorText.substring(0, 100)}...`; 
+          // Construct a message from the text response.
+          errorData.message = `Failed to generate plan. Server responded with: ${errorText.substring(0, 100)}...`;
         }
-        throw new Error(errorData.message || 'Fallo al generar el plan inicial');
+        throw new Error(errorData.message);
       }
 
+      // If response.ok is true, parse the JSON body
       const data: FrontendGeneratedPlanResponse = await response.json();
       console.log("API success response data:", data);
 
       const newProjectDetails: ProjectDetails = {
            ...values,
            _id: data.projectId,
-           createdAt: new Date(), 
-           updatedAt: new Date(), 
+           createdAt: new Date(),
+           updatedAt: new Date(),
            totalEstimatedCost: data.totalEstimatedCost, // Include total estimated cost from AI response
        };
       // data.initialPlan is now FrontendInitialPlanPhase[] which includes tasks
@@ -216,8 +226,8 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
                         <Input
                           type="number"
                           placeholder="Ingrese el presupuesto"
-                          {...field} 
-                          value={field.value === 0 ? '' : field.value} 
+                          {...field}
+                          value={field.value === 0 ? '' : field.value}
                           onChange={(e) => {
                             const value = e.target.value;
                             field.onChange(value === '' ? 0 : Number(value));
