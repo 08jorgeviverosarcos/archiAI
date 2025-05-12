@@ -144,7 +144,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-grow py-2 pr-2">
+        <ScrollArea className="flex-grow py-2 pr-2 min-h-0"> {/* Added min-h-0 to ensure ScrollArea can shrink */}
             <div className="space-y-4">
                 <Alert>
                     <Info className="h-4 w-4" />
@@ -171,7 +171,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                 </div>
 
                 {importErrors.length > 0 && (
-                <Alert variant="destructive" className="max-h-48 overflow-y-auto">
+                <Alert variant="destructive" className="max-h-48 overflow-y-auto"> {/* This specific alert can also scroll independently */}
                     <AlertTitle>Errores de Importación</AlertTitle>
                     <AlertDescription>
                     <ul className="list-disc pl-5 text-xs">
