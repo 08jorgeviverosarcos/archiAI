@@ -1,10 +1,10 @@
-
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, PlusCircle, Trash2, Edit, Package } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { ArrowLeft, Loader2, PlusCircle, Trash2, Edit, Package, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { MaterialProject as MaterialProjectType } from '@/types';
 import {
@@ -35,7 +35,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
 export default function ProjectMaterialsPage() {
@@ -49,6 +48,7 @@ export default function ProjectMaterialsPage() {
     const [error, setError] = useState<string | null>(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingMaterial, setEditingMaterial] = useState<MaterialProjectType | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const fetchMaterials = useCallback(async () => {
         if (!projectId) return;
@@ -78,6 +78,20 @@ export default function ProjectMaterialsPage() {
         fetchMaterials();
     }, [fetchMaterials]);
 
+    const filteredMaterials = useMemo(() => {
+        if (!searchTerm) {
+            return materials;
+        }
+        const lowercasedFilter = searchTerm.toLowerCase();
+        return materials.filter(material =>
+            material.title.toLowerCase().includes(lowercasedFilter) ||
+            material.referenceCode.toLowerCase().includes(lowercasedFilter) ||
+            material.description.toLowerCase().includes(lowercasedFilter) ||
+            material.brand.toLowerCase().includes(lowercasedFilter) ||
+            material.supplier.toLowerCase().includes(lowercasedFilter)
+        );
+    }, [materials, searchTerm]);
+
     const handleAddMaterial = () => {
         setEditingMaterial(null);
         setIsFormOpen(true);
@@ -94,7 +108,7 @@ export default function ProjectMaterialsPage() {
     };
 
     const handleMaterialSaved = (savedMaterial: MaterialProjectType) => {
-        fetchMaterials(); // Refetch materials to show the latest data
+        fetchMaterials(); 
         handleFormClose();
         toast({
           title: editingMaterial ? 'Material Actualizado' : 'Material Creado',
@@ -116,7 +130,7 @@ export default function ProjectMaterialsPage() {
                 title: 'Material Eliminado',
                 description: 'El material ha sido eliminado exitosamente.',
             });
-            fetchMaterials(); // Refresh the list
+            fetchMaterials(); 
         } catch (err: any) {
             toast({
                 variant: "destructive",
@@ -148,7 +162,7 @@ export default function ProjectMaterialsPage() {
 
     return (
         <div className="container mx-auto p-4 md:p-8 space-y-6">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                 <div>
                     <Button variant="ghost" size="sm" onClick={() => router.push(`/dashboard/${projectId}`)} className="mb-2">
                         <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Dashboard
@@ -158,7 +172,7 @@ export default function ProjectMaterialsPage() {
                 </div>
                 <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
                     <DialogTrigger asChild>
-                        <Button onClick={handleAddMaterial}>
+                        <Button onClick={handleAddMaterial} className="w-full sm:w-auto">
                             <PlusCircle className="mr-2 h-4 w-4" /> Agregar Material
                         </Button>
                     </DialogTrigger>
@@ -180,9 +194,21 @@ export default function ProjectMaterialsPage() {
                 <CardHeader>
                     <CardTitle>Lista de Materiales</CardTitle>
                     <CardDescription>Materiales disponibles para asignar a tareas del proyecto.</CardDescription>
+                    <div className="pt-4">
+                        <div className="relative">
+                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                type="text"
+                                placeholder="Buscar por título, cód. ref., descripción, marca, proveedor..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-8"
+                            />
+                        </div>
+                    </div>
                 </CardHeader>
                 <CardContent>
-                    {materials.length > 0 ? (
+                    {filteredMaterials.length > 0 ? (
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -197,7 +223,7 @@ export default function ProjectMaterialsPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {materials.map((material) => (
+                                {filteredMaterials.map((material) => (
                                     <TableRow key={material._id}>
                                         <TableCell className="font-medium">{material.title}</TableCell>
                                         <TableCell>{material.referenceCode}</TableCell>
@@ -205,7 +231,7 @@ export default function ProjectMaterialsPage() {
                                         <TableCell>{material.brand}</TableCell>
                                         <TableCell>{material.supplier}</TableCell>
                                         <TableCell>{material.unitOfMeasure}</TableCell>
-                                        <TableCell className="text-right">{(material.estimatedUnitPrice ?? 0).toLocaleString()}</TableCell>
+                                        <TableCell className="text-right">{(material.estimatedUnitPrice ?? 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</TableCell>
                                         <TableCell className="text-right space-x-1">
                                             <Button variant="ghost" size="icon" onClick={() => handleEditMaterial(material)}>
                                                 <Edit className="h-4 w-4" />
@@ -243,7 +269,9 @@ export default function ProjectMaterialsPage() {
                         </Table>
                     ) : (
                         <div className="text-center py-8">
-                            <p className="text-muted-foreground mb-4">No hay materiales definidos para este proyecto.</p>
+                            <p className="text-muted-foreground mb-4">
+                                {searchTerm ? "No se encontraron materiales con ese criterio de búsqueda." : "No hay materiales definidos para este proyecto."}
+                            </p>
                             <Button onClick={handleAddMaterial}>
                                 <PlusCircle className="mr-2 h-4 w-4" /> Agregar Material
                             </Button>
@@ -254,4 +282,3 @@ export default function ProjectMaterialsPage() {
             <Toaster />
         </div>
     );
-}
