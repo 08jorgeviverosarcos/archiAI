@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -35,7 +36,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger, // Added AlertDialogTrigger to imports
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { formatNumberForInput } from '@/lib/formattingUtils';
 
@@ -85,13 +86,14 @@ export default function ProjectMaterialsPage() {
             return materials;
         }
         const lowercasedFilter = searchTerm.toLowerCase();
-        return materials.filter(material =>
-            material.title.toLowerCase().includes(lowercasedFilter) ||
-            material.referenceCode.toLowerCase().includes(lowercasedFilter) ||
-            material.description.toLowerCase().includes(lowercasedFilter) ||
-            material.brand.toLowerCase().includes(lowercasedFilter) ||
-            material.supplier.toLowerCase().includes(lowercasedFilter)
-        );
+        return materials.filter(material => {
+            const titleMatch = (material.title || '').toLowerCase().includes(lowercasedFilter);
+            const refCodeMatch = (material.referenceCode || '').toLowerCase().includes(lowercasedFilter);
+            const descriptionMatch = (material.description || '').toLowerCase().includes(lowercasedFilter);
+            const brandMatch = (material.brand || '').toLowerCase().includes(lowercasedFilter);
+            const supplierMatch = (material.supplier || '').toLowerCase().includes(lowercasedFilter);
+            return titleMatch || refCodeMatch || descriptionMatch || brandMatch || supplierMatch;
+        });
     }, [materials, searchTerm]);
 
     const handleAddMaterial = () => {
