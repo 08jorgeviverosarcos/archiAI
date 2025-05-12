@@ -81,23 +81,13 @@ export async function POST(request: Request, { params }: { params: Params }) {
     const body = await request.json();
     const parsedBody = materialProjectCreateSchema.parse(body);
 
-    // Prepare data for new material.
-    // Pass values directly from Zod parsing. If a field is optional and not in the
-    // request, Zod makes it `undefined`. If `null` is sent, Zod makes it `null`.
-    // Mongoose schema with `required: false` will handle `undefined` by omitting the field
-    // and `null` by storing `null`.
     const newMaterialProjectData: any = {
       projectId: new mongoose.Types.ObjectId(projectId),
       title: parsedBody.title,
       unitOfMeasure: parsedBody.unitOfMeasure,
       estimatedUnitPrice: parsedBody.estimatedUnitPrice,
-      // profitMargin from Zod is already number or null (due to .default(null))
     };
 
-    // Conditionally add optional fields if they are not undefined (i.e., they were present in parsedBody)
-    // Zod `optional().nullable()` means a field can be string, null, or undefined (if not in payload).
-    // We only set the field on the Mongoose object if it's not undefined.
-    // If it was `null` in the payload, `parsedBody.fieldName` will be `null`.
     if (parsedBody.referenceCode !== undefined) {
       newMaterialProjectData.referenceCode = parsedBody.referenceCode;
     }
@@ -110,26 +100,11 @@ export async function POST(request: Request, { params }: { params: Params }) {
     if (parsedBody.description !== undefined) {
       newMaterialProjectData.description = parsedBody.description;
     }
-    // profitMargin is handled by Zod's .default(null), so it will be number or null.
-    // We can pass it directly if it's not undefined (though with .default(null) it shouldn't be undefined).
     if (parsedBody.profitMargin !== undefined) {
         newMaterialProjectData.profitMargin = parsedBody.profitMargin;
     }
 
-
-    // Check for duplicate referenceCode for this project only if referenceCode is provided and not null
-    if (newMaterialProjectData.referenceCode) { // Check if it's truthy (not null, not undefined, not empty string)
-        const existingMaterialWithRefCode = await MaterialProject.findOne({
-            projectId: newMaterialProjectData.projectId,
-            referenceCode: newMaterialProjectData.referenceCode
-        });
-        if (existingMaterialWithRefCode) {
-             return new NextResponse(JSON.stringify({ message: 'A material with this reference code already exists for this project.' }), {
-                status: 409, // Conflict
-                headers: { 'Content-Type': 'application/json' },
-            });
-        }
-    }
+    // Removed duplicate referenceCode check as it's no longer a unique constraint
 
     const newMaterialProject = new MaterialProject(newMaterialProjectData);
     await newMaterialProject.save();
@@ -143,12 +118,8 @@ export async function POST(request: Request, { params }: { params: Params }) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    if (error instanceof mongoose.Error.MongoServerError && error.code === 11000) {
-         return new NextResponse(JSON.stringify({ message: 'A material with this reference code already exists for this project or another unique constraint was violated.' }), {
-            status: 409, // Conflict
-            headers: { 'Content-Type': 'application/json' },
-        });
-    }
+    // Note: The MongoServerError for code 11000 (duplicate key) might still occur if other unique indexes exist.
+    // For this specific referenceCode scenario, it's removed.
     return new NextResponse(JSON.stringify({
       message: 'Failed to create material.',
       error: error instanceof Error ? error.message : String(error),

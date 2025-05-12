@@ -133,17 +133,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
           profitMargin: validatedRow.profitMargin === undefined ? null : validatedRow.profitMargin,
         };
 
-        // Check for duplicate referenceCode for this project only if referenceCode is given
-        if (validatedRow.referenceCode) {
-            const existingMaterial = await MaterialProject.findOne({
-                projectId: newMaterialProjectData.projectId,
-                referenceCode: validatedRow.referenceCode
-            });
-             if (existingMaterial) {
-                errors.push({ row: i + 2, message: `El código de referencia '${validatedRow.referenceCode}' ya existe para este proyecto.` });
-                continue; // Skip this row
-            }
-        }
+        // Removed check for duplicate referenceCode as it's no longer unique
         
         const newMaterialProject = new MaterialProject(newMaterialProjectData);
         await newMaterialProject.save();
@@ -152,9 +142,8 @@ export async function POST(request: Request, { params }: { params: Params }) {
       } catch (error: any) {
         if (error instanceof z.ZodError) {
           errors.push({ row: i + 2, message: 'Error de validación de datos.', details: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ') });
-        } else if (error.code === 11000) { 
-          errors.push({ row: i + 2, message: `Error de duplicado: ${error.message}. Esto puede suceder si el código de referencia ya existe.`});
         } else {
+          // Handle other potential errors, e.g., database errors not related to duplicate keys
           errors.push({ row: i + 2, message: `Error procesando fila: ${error.message}` });
         }
       }

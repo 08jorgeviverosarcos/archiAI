@@ -28,10 +28,8 @@ const materialProjectSchema = new Schema<IMaterialProject>(
   }
 );
 
-// Ensure referenceCode is unique per projectId IF it's provided (and not null/empty)
-// sparse: true allows multiple documents to have a null or missing referenceCode.
-// The unique constraint only applies when referenceCode has a value.
-materialProjectSchema.index({ projectId: 1, referenceCode: 1 }, { unique: true, sparse: true }); 
+// Removed the unique index for referenceCode:
+// materialProjectSchema.index({ projectId: 1, referenceCode: 1 }, { unique: true, sparse: true }); 
 
 const MaterialProject: Model<IMaterialProject> =
   mongoose.models.MaterialProject || mongoose.model<IMaterialProject>('MaterialProject', materialProjectSchema);
