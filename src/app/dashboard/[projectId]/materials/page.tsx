@@ -35,7 +35,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger, // Added AlertDialogTrigger to imports
 } from "@/components/ui/alert-dialog";
+import { formatNumberForInput } from '@/lib/formattingUtils';
 
 export default function ProjectMaterialsPage() {
     const params = useParams();
@@ -231,7 +233,7 @@ export default function ProjectMaterialsPage() {
                                         <TableCell>{material.brand}</TableCell>
                                         <TableCell>{material.supplier}</TableCell>
                                         <TableCell>{material.unitOfMeasure}</TableCell>
-                                        <TableCell className="text-right">{(material.estimatedUnitPrice ?? 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</TableCell>
+                                        <TableCell className="text-right">{formatNumberForInput(material.estimatedUnitPrice ?? 0)}</TableCell>
                                         <TableCell className="text-right space-x-1">
                                             <Button variant="ghost" size="icon" onClick={() => handleEditMaterial(material)}>
                                                 <Edit className="h-4 w-4" />
@@ -282,3 +284,4 @@ export default function ProjectMaterialsPage() {
             <Toaster />
         </div>
     );
+}
