@@ -121,21 +121,33 @@ export async function POST(request: Request, { params }: { params: Params }) {
 
         const validatedRow = csvMaterialRowSchema.parse(row);
         
-        const newMaterialProjectData = {
+        const newMaterialProjectData: any = { // Using 'any' for dynamic property assignment
           projectId: new mongoose.Types.ObjectId(projectId),
           title: validatedRow.title,
           unitOfMeasure: validatedRow.unitOfMeasure,
           estimatedUnitPrice: validatedRow.estimatedUnitPrice,
-          
-          // Explicitly convert empty strings from CSV to null for optional string fields
-          referenceCode: validatedRow.referenceCode === "" ? null : validatedRow.referenceCode,
-          brand: validatedRow.brand === "" ? null : validatedRow.brand,
-          supplier: validatedRow.supplier === "" ? null : validatedRow.supplier,
-          description: validatedRow.description === "" ? null : validatedRow.description,
-          
-          // profitMargin is already handled by Zod preprocess to be null or number
-          profitMargin: validatedRow.profitMargin,
         };
+
+        // Only add optional fields if they have a non-empty, non-null value.
+        // Otherwise, Mongoose's `default: null` (or omission if not explicitly defaulted) should apply.
+        if (validatedRow.referenceCode && validatedRow.referenceCode.trim() !== "") {
+            newMaterialProjectData.referenceCode = validatedRow.referenceCode;
+        }
+        if (validatedRow.brand && validatedRow.brand.trim() !== "") {
+            newMaterialProjectData.brand = validatedRow.brand;
+        }
+        if (validatedRow.supplier && validatedRow.supplier.trim() !== "") {
+            newMaterialProjectData.supplier = validatedRow.supplier;
+        }
+        if (validatedRow.description && validatedRow.description.trim() !== "") {
+            newMaterialProjectData.description = validatedRow.description;
+        }
+        // For profitMargin, which can be a number or null (and Zod handles its preprocessing)
+        // If it's undefined (e.g., column missing & Zod optional), it won't be added, Mongoose default should apply.
+        // If it's null (e.g., empty cell parsed to null by Zod), it will be set to null.
+        if (validatedRow.profitMargin !== undefined) {
+            newMaterialProjectData.profitMargin = validatedRow.profitMargin;
+        }
         
         const newMaterialProject = new MaterialProject(newMaterialProjectData);
         await newMaterialProject.save();
@@ -179,4 +191,4 @@ export async function POST(request: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
-
+    
