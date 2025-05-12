@@ -15,13 +15,13 @@ const materialProjectSchema = new Schema<IMaterialProject>(
   {
     projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true, index: true },
     title: { type: String, required: true }, 
-    referenceCode: { type: String, trim: true, required: false }, 
-    brand: { type: String, trim: true, required: false }, 
-    supplier: { type: String, trim: true, required: false }, 
-    description: { type: String, trim: true, required: false }, 
+    referenceCode: { type: String, trim: true, required: false, default: null }, 
+    brand: { type: String, trim: true, required: false, default: null }, 
+    supplier: { type: String, trim: true, required: false, default: null }, 
+    description: { type: String, trim: true, required: false, default: null }, 
     unitOfMeasure: { type: String, required: true, enum: unitsOfMeasureValues },
     estimatedUnitPrice: { type: Number, required: true, min: 0, default: 0 },
-    profitMargin: { type: Number, min: 0, required: false, default: null }, // Allows null, and field can be absent
+    profitMargin: { type: Number, min: 0, required: false, default: null },
   },
   {
     timestamps: true, // Automatically adds createdAt and updatedAt
