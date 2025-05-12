@@ -81,21 +81,44 @@ export async function POST(request: Request, { params }: { params: Params }) {
     const body = await request.json();
     const parsedBody = materialProjectCreateSchema.parse(body);
 
-    // Prepare data for new material, explicitly setting optional fields to null if not provided
-    const newMaterialProjectData = {
+    // Prepare data for new material.
+    // Pass values directly from Zod parsing. If a field is optional and not in the
+    // request, Zod makes it `undefined`. If `null` is sent, Zod makes it `null`.
+    // Mongoose schema with `required: false` will handle `undefined` by omitting the field
+    // and `null` by storing `null`.
+    const newMaterialProjectData: any = {
       projectId: new mongoose.Types.ObjectId(projectId),
       title: parsedBody.title,
-      referenceCode: parsedBody.referenceCode || null,
-      brand: parsedBody.brand || null,
-      supplier: parsedBody.supplier || null,
-      description: parsedBody.description || null,
       unitOfMeasure: parsedBody.unitOfMeasure,
       estimatedUnitPrice: parsedBody.estimatedUnitPrice,
-      profitMargin: parsedBody.profitMargin === undefined ? null : parsedBody.profitMargin, // Ensure null if undefined
+      // profitMargin from Zod is already number or null (due to .default(null))
     };
 
-    // Check for duplicate referenceCode for this project only if referenceCode is provided and not an empty string
-    if (newMaterialProjectData.referenceCode) {
+    // Conditionally add optional fields if they are not undefined (i.e., they were present in parsedBody)
+    // Zod `optional().nullable()` means a field can be string, null, or undefined (if not in payload).
+    // We only set the field on the Mongoose object if it's not undefined.
+    // If it was `null` in the payload, `parsedBody.fieldName` will be `null`.
+    if (parsedBody.referenceCode !== undefined) {
+      newMaterialProjectData.referenceCode = parsedBody.referenceCode;
+    }
+    if (parsedBody.brand !== undefined) {
+      newMaterialProjectData.brand = parsedBody.brand;
+    }
+    if (parsedBody.supplier !== undefined) {
+      newMaterialProjectData.supplier = parsedBody.supplier;
+    }
+    if (parsedBody.description !== undefined) {
+      newMaterialProjectData.description = parsedBody.description;
+    }
+    // profitMargin is handled by Zod's .default(null), so it will be number or null.
+    // We can pass it directly if it's not undefined (though with .default(null) it shouldn't be undefined).
+    if (parsedBody.profitMargin !== undefined) {
+        newMaterialProjectData.profitMargin = parsedBody.profitMargin;
+    }
+
+
+    // Check for duplicate referenceCode for this project only if referenceCode is provided and not null
+    if (newMaterialProjectData.referenceCode) { // Check if it's truthy (not null, not undefined, not empty string)
         const existingMaterialWithRefCode = await MaterialProject.findOne({
             projectId: newMaterialProjectData.projectId,
             referenceCode: newMaterialProjectData.referenceCode
@@ -121,7 +144,6 @@ export async function POST(request: Request, { params }: { params: Params }) {
       });
     }
     if (error instanceof mongoose.Error.MongoServerError && error.code === 11000) {
-        // This error might be triggered by the unique index if referenceCode is duplicated
          return new NextResponse(JSON.stringify({ message: 'A material with this reference code already exists for this project or another unique constraint was violated.' }), {
             status: 409, // Conflict
             headers: { 'Content-Type': 'application/json' },
@@ -133,4 +155,3 @@ export async function POST(request: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
-
