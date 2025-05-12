@@ -5,7 +5,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Loader2, PlusCircle, Trash2, Edit, Package, Search } from 'lucide-react';
+import { ArrowLeft, Loader2, PlusCircle, Trash2, Edit, Package, Search, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { MaterialProject as MaterialProjectType } from '@/types';
 import {
@@ -25,6 +25,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { MaterialProjectForm } from '@/components/MaterialProjectForm';
+import { CsvImportModal } from '@/components/CsvImportModal'; // Import the new modal
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Toaster } from '@/components/ui/toaster';
 import {
@@ -40,6 +41,19 @@ import {
 } from "@/components/ui/alert-dialog";
 import { formatNumberForInput } from '@/lib/formattingUtils';
 
+const materialCsvStructure = [
+    { header: 'title', description: 'Nombre descriptivo del material', required: true },
+    { header: 'referenceCode', description: 'Código único para el material dentro del proyecto', required: true },
+    { header: 'brand', description: 'Marca del material', required: true },
+    { header: 'supplier', description: 'Proveedor del material', required: true },
+    { header: 'description', description: 'Descripción detallada del material', required: true },
+    { header: 'unitOfMeasure', description: 'Unidad de medida (ej. m, m², kg, unidad)', required: true },
+    { header: 'estimatedUnitPrice', description: 'Precio unitario estimado (número)', required: true },
+    { header: 'profitMargin', description: 'Margen de utilidad en % (ej. 10 para 10%, opcional)', required: false },
+];
+const materialCsvTemplateHeaders = materialCsvStructure.map(col => col.header);
+
+
 export default function ProjectMaterialsPage() {
     const params = useParams();
     const router = useRouter();
@@ -52,6 +66,8 @@ export default function ProjectMaterialsPage() {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingMaterial, setEditingMaterial] = useState<MaterialProjectType | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isCsvImportModalOpen, setIsCsvImportModalOpen] = useState(false);
+
 
     const fetchMaterials = useCallback(async () => {
         if (!projectId) return;
@@ -144,6 +160,20 @@ export default function ProjectMaterialsPage() {
         }
     };
 
+     const handleOpenCsvImportModal = () => {
+        setIsCsvImportModalOpen(true);
+    };
+
+    const handleCloseCsvImportModal = () => {
+        setIsCsvImportModalOpen(false);
+    };
+
+    const handleCsvImportSuccess = () => {
+        fetchMaterials(); // Refresh the list after import
+        handleCloseCsvImportModal();
+    };
+
+
     if (isLoading) {
         return (
             <div className="flex justify-center items-center min-h-screen">
@@ -174,24 +204,29 @@ export default function ProjectMaterialsPage() {
                     <h1 className="text-2xl font-bold flex items-center gap-2"><Package className="h-6 w-6" />Gestión de Materiales del Proyecto</h1>
                     <p className="text-muted-foreground">Administra los materiales generales asociados a este proyecto.</p>
                 </div>
-                <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-                    <DialogTrigger asChild>
-                        <Button onClick={handleAddMaterial} className="w-full sm:w-auto">
-                            <PlusCircle className="mr-2 h-4 w-4" /> Agregar Material
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[750px] max-h-[90vh] flex flex-col">
-                        <DialogHeader>
-                            <DialogTitle>{editingMaterial ? 'Editar Material' : 'Agregar Nuevo Material'}</DialogTitle>
-                        </DialogHeader>
-                        <MaterialProjectForm
-                            projectId={projectId}
-                            existingMaterial={editingMaterial}
-                            onMaterialSaved={handleMaterialSaved}
-                            onCancel={handleFormClose}
-                        />
-                    </DialogContent>
-                </Dialog>
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <Button onClick={handleOpenCsvImportModal} variant="outline" className="w-full sm:w-auto">
+                        <Upload className="mr-2 h-4 w-4" /> Importar CSV
+                    </Button>
+                    <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+                        <DialogTrigger asChild>
+                            <Button onClick={handleAddMaterial} className="w-full sm:w-auto">
+                                <PlusCircle className="mr-2 h-4 w-4" /> Agregar Material
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[750px] max-h-[90vh] flex flex-col">
+                            <DialogHeader>
+                                <DialogTitle>{editingMaterial ? 'Editar Material' : 'Agregar Nuevo Material'}</DialogTitle>
+                            </DialogHeader>
+                            <MaterialProjectForm
+                                projectId={projectId}
+                                existingMaterial={editingMaterial}
+                                onMaterialSaved={handleMaterialSaved}
+                                onCancel={handleFormClose}
+                            />
+                        </DialogContent>
+                    </Dialog>
+                </div>
             </div>
 
             <Card>
@@ -284,6 +319,17 @@ export default function ProjectMaterialsPage() {
                 </CardContent>
             </Card>
             <Toaster />
+             <CsvImportModal
+                isOpen={isCsvImportModalOpen}
+                onClose={handleCloseCsvImportModal}
+                onImportSuccess={handleCsvImportSuccess}
+                projectId={projectId}
+                importUrl={`/api/projects/${projectId}/materials/import-csv`}
+                moduleName="Materiales del Proyecto"
+                csvStructureExample={materialCsvStructure}
+                csvTemplateHeaders={materialCsvTemplateHeaders}
+            />
         </div>
     );
 }
+
