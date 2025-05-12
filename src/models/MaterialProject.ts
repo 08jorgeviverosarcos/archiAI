@@ -15,10 +15,10 @@ const materialProjectSchema = new Schema<IMaterialProject>(
   {
     projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true, index: true },
     title: { type: String, required: true }, 
-    referenceCode: { type: String, required: false }, // Optional
-    brand: { type: String, required: false }, // Optional
-    supplier: { type: String, required: false }, // Optional
-    description: { type: String, required: false }, // Optional
+    referenceCode: { type: String, required: false, default: null, nullable: true }, 
+    brand: { type: String, required: false, default: null, nullable: true }, 
+    supplier: { type: String, required: false, default: null, nullable: true }, 
+    description: { type: String, required: false, default: null, nullable: true }, 
     unitOfMeasure: { type: String, required: true, enum: unitsOfMeasureValues },
     estimatedUnitPrice: { type: Number, required: true, min: 0, default: 0 },
     profitMargin: { type: Number, min: 0, default: null, nullable: true }, // Allow null
@@ -28,10 +28,13 @@ const materialProjectSchema = new Schema<IMaterialProject>(
   }
 );
 
-// Ensure referenceCode is unique per projectId IF it's provided
-materialProjectSchema.index({ projectId: 1, referenceCode: 1 }, { unique: true, sparse: true }); // sparse allows multiple null/undefined values
+// Ensure referenceCode is unique per projectId IF it's provided (and not null/empty)
+// sparse: true allows multiple documents to have a null or missing referenceCode.
+// The unique constraint only applies when referenceCode has a value.
+materialProjectSchema.index({ projectId: 1, referenceCode: 1 }, { unique: true, sparse: true }); 
 
 const MaterialProject: Model<IMaterialProject> =
   mongoose.models.MaterialProject || mongoose.model<IMaterialProject>('MaterialProject', materialProjectSchema);
 
 export default MaterialProject;
+

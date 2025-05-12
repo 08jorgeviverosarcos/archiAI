@@ -22,10 +22,10 @@ const unitsOfMeasureValues = [
 
 const materialProjectFormSchema = z.object({
   title: z.string().min(1, "El título es requerido"),
-  referenceCode: z.string().optional().nullable(), // Optional
-  brand: z.string().optional().nullable(), // Optional
-  supplier: z.string().optional().nullable(), // Optional
-  description: z.string().optional().nullable(), // Optional
+  referenceCode: z.string().optional().nullable(),
+  brand: z.string().optional().nullable(),
+  supplier: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
   unitOfMeasure: z.enum(unitsOfMeasureValues, {
     required_error: "La unidad de medida es requerida.",
   }),
@@ -61,10 +61,10 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
     resolver: zodResolver(materialProjectFormSchema),
     defaultValues: {
       title: existingMaterial?.title ?? '',
-      referenceCode: existingMaterial?.referenceCode ?? '',
-      brand: existingMaterial?.brand ?? '',
-      supplier: existingMaterial?.supplier ?? '',
-      description: existingMaterial?.description ?? '',
+      referenceCode: existingMaterial?.referenceCode ?? null,
+      brand: existingMaterial?.brand ?? null,
+      supplier: existingMaterial?.supplier ?? null,
+      description: existingMaterial?.description ?? null,
       unitOfMeasure: existingMaterial?.unitOfMeasure ?? undefined,
       estimatedUnitPrice: existingMaterial?.estimatedUnitPrice ?? 0,
       profitMargin: existingMaterial?.profitMargin ?? null,
@@ -74,10 +74,10 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
   useEffect(() => {
     form.reset({
       title: existingMaterial?.title ?? '',
-      referenceCode: existingMaterial?.referenceCode ?? '',
-      brand: existingMaterial?.brand ?? '',
-      supplier: existingMaterial?.supplier ?? '',
-      description: existingMaterial?.description ?? '',
+      referenceCode: existingMaterial?.referenceCode ?? null,
+      brand: existingMaterial?.brand ?? null,
+      supplier: existingMaterial?.supplier ?? null,
+      description: existingMaterial?.description ?? null,
       unitOfMeasure: existingMaterial?.unitOfMeasure ?? undefined,
       estimatedUnitPrice: existingMaterial?.estimatedUnitPrice ?? 0,
       profitMargin: existingMaterial?.profitMargin ?? null,
@@ -92,44 +92,46 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
         : `/api/projects/${projectId}/materials`;
       const method = existingMaterial?._id ? 'PUT' : 'POST';
 
-      // For PUT, only send fields that have changed or are part of the schema
-      // For POST, send all data
-      let payload: Partial<MaterialProjectFormData> | MaterialProjectFormData = data;
+      // Prepare payload, ensuring empty strings for optional fields become null
+      const processedData = {
+        ...data,
+        referenceCode: data.referenceCode || null,
+        brand: data.brand || null,
+        supplier: data.supplier || null,
+        description: data.description || null,
+        profitMargin: data.profitMargin === undefined ? null : data.profitMargin,
+      };
+      
+      let payload: Partial<MaterialProjectFormData> | MaterialProjectFormData = processedData;
+
       if (method === 'PUT') {
-        payload = {}; // Initialize an empty object for PUT payload
-        // Iterate over form data keys
-        for (const key of Object.keys(data) as Array<keyof MaterialProjectFormData>) {
-            // If the field is in existingMaterial, compare values
+        const tempPayload: Partial<MaterialProjectFormData> = {};
+        for (const key of Object.keys(processedData) as Array<keyof MaterialProjectFormData>) {
             if (existingMaterial && Object.prototype.hasOwnProperty.call(existingMaterial, key)) {
-                // @ts-ignore - existingMaterial might not have all keys of MaterialProjectFormData if types diverge slightly
-                if (data[key] !== existingMaterial[key]) {
-                    payload[key] = data[key];
+                // @ts-ignore
+                if (processedData[key] !== existingMaterial[key]) {
+                    tempPayload[key] = processedData[key];
                 }
             } else {
-                // If the field is not in existingMaterial (e.g. new optional field being set), include it
-                 payload[key] = data[key];
+                 tempPayload[key] = processedData[key];
             }
         }
-        // Ensure all fields from the schema are considered, even if undefined initially
-        // This is important if you want to explicitly set a field to null/undefined
         (Object.keys(materialProjectFormSchema.shape) as Array<keyof MaterialProjectFormData>).forEach(schemaKey => {
-            if (data[schemaKey] !== undefined && !Object.prototype.hasOwnProperty.call(payload, schemaKey)) {
-                 payload[schemaKey] = data[schemaKey];
+            if (processedData[schemaKey] !== undefined && !Object.prototype.hasOwnProperty.call(tempPayload, schemaKey)) {
+                 tempPayload[schemaKey] = processedData[schemaKey];
             }
         });
-
-        if (Object.keys(payload).length === 0) {
+        
+        if (Object.keys(tempPayload).length === 0) {
             toast({
                 title: 'Sin cambios',
                 description: 'No se detectaron cambios para actualizar.',
             });
             setIsSubmitting(false);
-            onCancel(); // Or onMaterialSaved if preferred for consistency
+            onCancel();
             return;
         }
-
-      } else { // POST
-         payload = data;
+        payload = tempPayload;
       }
 
 
@@ -322,3 +324,4 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
     </Form>
   );
 };
+

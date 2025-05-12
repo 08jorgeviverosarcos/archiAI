@@ -18,15 +18,15 @@ const unitsOfMeasure = [
 
 const materialProjectCreateSchema = z.object({
   title: z.string().min(1, "El título es requerido"),
-  referenceCode: z.string().optional(), // Optional
-  brand: z.string().optional(), // Optional
-  supplier: z.string().optional(), // Optional
-  description: z.string().optional(), // Optional
+  referenceCode: z.string().optional().nullable(),
+  brand: z.string().optional().nullable(),
+  supplier: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
   unitOfMeasure: z.enum(unitsOfMeasure, {
     required_error: "La unidad de medida es requerida.",
   }),
   estimatedUnitPrice: z.number().min(0, "Estimated unit price must be non-negative").default(0),
-  profitMargin: z.number().min(0).optional().nullable().default(null), // Allow null, default to null
+  profitMargin: z.number().min(0).optional().nullable().default(null),
 });
 
 // GET all materials for a specific project
@@ -81,29 +81,25 @@ export async function POST(request: Request, { params }: { params: Params }) {
     const body = await request.json();
     const parsedBody = materialProjectCreateSchema.parse(body);
 
+    // Prepare data for new material, explicitly setting optional fields to null if not provided
     const newMaterialProjectData = {
       projectId: new mongoose.Types.ObjectId(projectId),
       title: parsedBody.title,
-      referenceCode: parsedBody.referenceCode,
-      brand: parsedBody.brand,
-      supplier: parsedBody.supplier,
-      description: parsedBody.description,
+      referenceCode: parsedBody.referenceCode || null,
+      brand: parsedBody.brand || null,
+      supplier: parsedBody.supplier || null,
+      description: parsedBody.description || null,
       unitOfMeasure: parsedBody.unitOfMeasure,
       estimatedUnitPrice: parsedBody.estimatedUnitPrice,
-      profitMargin: parsedBody.profitMargin,
+      profitMargin: parsedBody.profitMargin === undefined ? null : parsedBody.profitMargin, // Ensure null if undefined
     };
 
-    // Only include referenceCode in findOne if it's provided in parsedBody
-    const query: { projectId: mongoose.Types.ObjectId; referenceCode?: string } = {
-      projectId: new mongoose.Types.ObjectId(projectId),
-    };
-    if (parsedBody.referenceCode) {
-      query.referenceCode = parsedBody.referenceCode;
-    }
-
-    // Check for duplicate referenceCode for this project only if referenceCode is given
-    if (parsedBody.referenceCode) {
-        const existingMaterialWithRefCode = await MaterialProject.findOne(query);
+    // Check for duplicate referenceCode for this project only if referenceCode is provided and not an empty string
+    if (newMaterialProjectData.referenceCode) {
+        const existingMaterialWithRefCode = await MaterialProject.findOne({
+            projectId: newMaterialProjectData.projectId,
+            referenceCode: newMaterialProjectData.referenceCode
+        });
         if (existingMaterialWithRefCode) {
              return new NextResponse(JSON.stringify({ message: 'A material with this reference code already exists for this project.' }), {
                 status: 409, // Conflict
@@ -124,12 +120,17 @@ export async function POST(request: Request, { params }: { params: Params }) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    // Note: The explicit duplicate key error check (11000) might be less reliable if referenceCode is optional and null/undefined.
-    // The check above is more specific for when referenceCode is provided.
-    // Mongoose's `sparse: true` index helps allow multiple nulls/undefined for optional unique fields.
+    if (error instanceof mongoose.Error.MongoServerError && error.code === 11000) {
+        // This error might be triggered by the unique index if referenceCode is duplicated
+         return new NextResponse(JSON.stringify({ message: 'A material with this reference code already exists for this project or another unique constraint was violated.' }), {
+            status: 409, // Conflict
+            headers: { 'Content-Type': 'application/json' },
+        });
+    }
     return new NextResponse(JSON.stringify({
       message: 'Failed to create material.',
       error: error instanceof Error ? error.message : String(error),
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
+
