@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -29,6 +28,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale'; // Import Spanish locale for date formatting
 import { Slider } from '@/components/ui/slider'; // Import Slider
 import { ScrollArea } from '@/components/ui/scroll-area'; // Import ScrollArea
+import { formatNumberForInput, parseFormattedNumber } from '@/lib/formattingUtils';
 
 const unitsOfMeasure = [
   'm', 'm²', 'm³', 'kg', 'L', 'gal', 'unidad', 'caja', 'rollo', 'bolsa', 'hr', 'día', 'semana', 'mes', 'global', 'pulg', 'pie', 'yd', 'ton', 'lb'
@@ -127,25 +127,19 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       const url = existingTask?._id ? `/api/tasks/${existingTask._id}` : '/api/tasks';
       const method = existingTask?._id ? 'PUT' : 'POST';
 
-      // Base payload with common fields
       const basePayload: any = {
-        ...data, // Contains all validated form fields
+        ...data,
         profitMargin: data.profitMargin === undefined || data.profitMargin === null ? null : data.profitMargin,
         laborCost: data.laborCost === undefined || data.laborCost === null ? null : data.laborCost,
         estimatedDuration: data.estimatedDuration === undefined || data.estimatedDuration === null ? null : data.estimatedDuration,
         executionPercentage: data.executionPercentage === undefined || data.executionPercentage === null ? null : data.executionPercentage,
-        startDate: data.startDate || null,
-        endDate: data.endDate || null,
+        startDate: data.startDate ? data.startDate.toISOString() : null,
+        endDate: data.endDate ? data.endDate.toISOString() : null,
       };
 
-      // Conditionally add projectId and phaseUUID for POST requests only
-      const payload = existingTask?._id
-        ? basePayload // For PUT, only send fields defined in taskUpdateSchema
-        : { // For POST, include projectId and phaseUUID
-            ...basePayload,
-            projectId: projectId,
-            phaseUUID: phaseUUID,
-          };
+      const payload = method === 'POST'
+        ? { ...basePayload, projectId: projectId, phaseUUID: phaseUUID }
+        : basePayload;
 
 
       console.log("Sending task payload:", payload, "to URL:", url, "with method:", method);
@@ -158,23 +152,18 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
       if (!response.ok) {
         let errorMsg = `Fallo al ${existingTask ? 'actualizar' : 'crear'} la tarea`;
-        // Read the response body as text first
-        const errorText = await response.text();
+        const errorText = await response.text(); // Get raw error text
         console.error('API Error Response (Raw Text):', errorText);
         try {
-          // Try parsing the text as JSON
-          const errorData = JSON.parse(errorText);
+          const errorData = JSON.parse(errorText); // Try to parse as JSON
           errorMsg = errorData.message || errorMsg;
-          // Log specific Zod errors if present
           if (errorData.errors) {
             console.error('Zod Validation Errors:', errorData.errors);
             errorMsg += ` Detalles: ${JSON.stringify(errorData.errors)}`;
           }
-          console.error('API Error Response (Parsed JSON):', errorData);
         } catch(e) {
-          // If JSON parsing fails, use the raw text
           console.error('Failed to parse API error response as JSON:', e);
-          errorMsg += `: ${errorText.substring(0, 200)}...`; // Show a snippet
+          errorMsg += `: ${errorText.substring(0, 200)}...`;
         }
          throw new Error(errorMsg);
       }
@@ -185,7 +174,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             onTaskSaved(savedTaskResponse.task);
        } else {
             console.warn("Task data not found in expected structure in response:", savedTaskResponse);
-            onTaskSaved(savedTaskResponse); // Fallback, might need adjustment based on actual response
+            onTaskSaved(savedTaskResponse); 
        }
 
 
@@ -203,7 +192,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
   return (
     <Form {...form}>
-      <ScrollArea className="flex-grow overflow-y-auto pr-6 max-h-[calc(90vh-200px)]"> {/* Adjusted max height */}
+      <ScrollArea className="flex-grow overflow-y-auto pr-6 max-h-[calc(90vh-200px)]"> 
         <form id="task-form-id" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <FormField
             control={form.control}
@@ -276,7 +265,12 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                       <FormItem>
                       <FormLabel>Precio Unitario</FormLabel>
                       <FormControl>
-                          <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))} value={field.value === 0 ? '' : field.value}/>
+                          <Input 
+                            type="text" // Changed to text
+                            {...field} 
+                            value={field.value === 0 ? '' : formatNumberForInput(field.value)}
+                            onChange={e => field.onChange(parseFormattedNumber(e.target.value) ?? 0)} 
+                          />
                       </FormControl>
                       <FormMessage />
                       </FormItem>
@@ -292,7 +286,12 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                       <FormItem>
                       <FormLabel>Costo Mano Obra (Opc)</FormLabel>
                       <FormControl>
-                           <Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''}/>
+                           <Input 
+                            type="text" // Changed to text
+                            {...field} 
+                            value={field.value === null || field.value === undefined ? '' : formatNumberForInput(field.value)}
+                            onChange={e => field.onChange(parseFormattedNumber(e.target.value))}
+                           />
                       </FormControl>
                       <FormMessage />
                       </FormItem>
@@ -380,7 +379,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                              selected={field.value ?? undefined}
                             onSelect={(date) => field.onChange(date || null)}
                             disabled={(date) =>
-                              false // No specific disabling logic here, can be added if needed
+                              false 
                             }
                             initialFocus
                           />
@@ -422,9 +421,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                              onSelect={(date) => field.onChange(date || null)}
                             disabled={(date) => {
                                 const startDateValue = form.getValues("startDate");
-                                // Ensure startDateValue is a valid date before comparison
                                 const validStartDate = startDateValue instanceof Date && !isNaN(startDateValue.getTime());
-                                return (validStartDate && date < startDateValue!) || false; // Disable dates before start date
+                                return (validStartDate && date < startDateValue!) || false; 
                             }}
                             initialFocus
                           />
@@ -444,11 +442,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                   <FormLabel>Porcentaje de Ejecución ({value ?? 0}%)</FormLabel>
                    <FormControl>
                     <Slider
-                      value={[value ?? 0]} // Slider expects an array
-                       onValueChange={(vals) => onChange(vals[0])} // Take the first value from the array
+                      value={[value ?? 0]} 
+                       onValueChange={(vals) => onChange(vals[0])} 
                       max={100}
                       step={1}
-                      className="py-2" // Add some padding for better visual
+                      className="py-2" 
                     />
                   </FormControl>
                   <FormMessage />
@@ -458,7 +456,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         </form>
       </ScrollArea>
 
-       <div className="flex justify-end space-x-2 pt-4 border-t mt-auto"> {/* Ensure this is outside ScrollArea or handled by DialogFooter */}
+       <div className="flex justify-end space-x-2 pt-4 border-t mt-auto"> 
             <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Cancelar
             </Button>

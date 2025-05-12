@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -14,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ProjectDetails, FrontendInitialPlanPhase, FrontendGeneratedPlanResponse } from '@/types'; // Updated types
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { formatNumberForInput, parseFormattedNumber } from '@/lib/formattingUtils';
 
 interface ProjectDetailsFormProps {
   onProjectCreated: (projectDetails: ProjectDetails, initialPlan: FrontendInitialPlanPhase[] | null, initialPlanId: string | null) => void;
@@ -29,7 +29,7 @@ const formSchema = z.object({
     required_error: 'Por favor, seleccione un tipo de proyecto.',
   }),
   projectLocation: z.string().optional(),
-  totalBudget: z.number().min(1, {
+  totalBudget: z.number().min(1, { // Stays as number for validation
     message: 'El presupuesto total debe ser mayor que 0.',
   }),
   currency: z.string().min(2).max(3, {
@@ -79,21 +79,29 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
 
       if (!response.ok) {
         let errorMsg = `Server error: ${response.statusText}`;
-        let errorText = '';
+        let errorText = ''; // Variable to store raw error text
+        let errorData: { message?: string, errors?: any } = {}; // For parsed JSON error
+
         try {
-          // Read the response body as text first
-          errorText = await response.text();
-          // Try parsing the text as JSON
-          const errorData = JSON.parse(errorText);
-          console.error('API Error Response (Parsed JSON):', errorData);
-          // If JSON parsing is successful, use its message.
+          // Attempt to parse as JSON first
+          errorData = await response.json();
+          console.error('API Error Response (JSON):', errorData);
           errorMsg = errorData.message || errorMsg;
-        } catch (e) {
-          // If JSON parsing fails, use the raw text
-          console.error('API Error Response (Raw Text):', errorText);
-          console.error('Failed to parse API error response as JSON:', e);
-          // Construct a message from the text response.
-          errorMsg = `Failed to generate plan. Server responded with: ${errorText.substring(0, 100)}...`;
+          if (errorData.errors) {
+             console.error('Detailed Zod Errors:', errorData.errors);
+             errorMsg += ` Detalles: ${JSON.stringify(errorData.errors)}`;
+          }
+        } catch (jsonError) {
+          // If JSON parsing fails, read as text
+          // Note: response.text() can only be called once.
+          // To safely use it after a failed .json(), you'd need to clone the response.
+          // However, in a catch block for response.json(), response body might already be consumed or disturbed.
+          // The robust way is to get text first, then try to parse.
+          // For now, let's assume if .json() fails, the body wasn't JSON or was empty.
+          console.error('Failed to parse API error response as JSON:', jsonError);
+          // We can't reliably call response.text() here if response.json() already tried and failed.
+          // So, we stick with the statusText or a generic message.
+          // To get the text body reliably, you would fetch response.text() first.
         }
         throw new Error(errorMsg);
       }
@@ -107,9 +115,8 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
            _id: data.projectId,
            createdAt: new Date(),
            updatedAt: new Date(),
-           totalEstimatedCost: data.totalEstimatedCost, // Include total estimated cost from AI response
-       };
-      // data.initialPlan is now FrontendInitialPlanPhase[] which includes tasks
+           totalEstimatedCost: data.totalEstimatedCost, 
+      };
       const generatedPlanWithTasks: FrontendInitialPlanPhase[] | null = data.initialPlan || null;
       const planId: string | null = data.initialPlanId || null;
 
@@ -224,13 +231,12 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
                       </FormLabel>
                       <FormControl>
                         <Input
-                          type="number"
+                          type="text" // Changed to text to allow formatted input
                           placeholder="Ingrese el presupuesto"
-                          {...field}
-                          value={field.value === 0 ? '' : field.value}
+                          value={field.value === 0 ? '' : formatNumberForInput(field.value)}
                           onChange={(e) => {
-                            const value = e.target.value;
-                            field.onChange(value === '' ? 0 : Number(value));
+                            const parsed = parseFormattedNumber(e.target.value);
+                            field.onChange(parsed === null ? 0 : parsed); // RHF expects number here
                           }}
                         />
                       </FormControl>

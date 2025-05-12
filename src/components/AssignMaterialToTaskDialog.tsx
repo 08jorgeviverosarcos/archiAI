@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -19,6 +18,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { formatNumberForInput, parseFormattedNumber } from '@/lib/formattingUtils';
 
 interface AssignMaterialToTaskDialogProps {
   taskId: string;
@@ -51,9 +51,9 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [selectedMaterialProject, setSelectedMaterialProject] = useState<string>('');
-  const [quantityUsed, setQuantityUsed] = useState<number | string>('');
-  const [profitMargin, setProfitMargin] = useState<number | string>('');
-  const [purchasedValueForTaskInput, setPurchasedValueForTaskInput] = useState<number | string>('');
+  const [quantityUsed, setQuantityUsed] = useState<number | string>(''); // Keep as string for direct input handling
+  const [profitMargin, setProfitMargin] = useState<number | string>(''); // Keep as string
+  const [purchasedValueForTaskInput, setPurchasedValueForTaskInput] = useState<string>(''); // Keep as string
   const [searchTerm, setSearchTerm] = useState('');
 
 
@@ -145,12 +145,17 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
 
   const handleAddMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedMaterialProject || quantityUsed === '' || Number(quantityUsed) <= 0) {
+    const numQuantityUsed = parseFormattedNumber(String(quantityUsed));
+
+    if (!selectedMaterialProject || numQuantityUsed === null || numQuantityUsed <= 0) {
       toast({ variant: 'destructive', title: 'Error de validación', description: 'Por favor seleccione un material y especifique una cantidad válida.' });
       return;
     }
     setIsSubmitting(true);
     try {
+      const numProfitMargin = parseFormattedNumber(String(profitMargin));
+      const numPurchasedValue = parseFormattedNumber(purchasedValueForTaskInput);
+
       const payload: { 
         materialProjectId: string; 
         quantityUsed: number; 
@@ -158,15 +163,11 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
         purchasedValueForTask?: number | null;
     } = {
          materialProjectId: selectedMaterialProject,
-         quantityUsed: Number(quantityUsed)
+         quantityUsed: numQuantityUsed,
+         profitMarginForTaskMaterial: numProfitMargin,
+         purchasedValueForTask: numPurchasedValue
       };
-      const numProfitMargin = Number(profitMargin);
-      payload.profitMarginForTaskMaterial = profitMargin === '' || isNaN(numProfitMargin) ? null : numProfitMargin;
       
-      const numPurchasedValue = Number(purchasedValueForTaskInput);
-      payload.purchasedValueForTask = purchasedValueForTaskInput === '' || isNaN(numPurchasedValue) ? null : numPurchasedValue;
-
-
       const response = await fetch(`/api/tasks/${taskId}/materials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -191,15 +192,15 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
     }
   };
 
-  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+  const handleEditInputChange = (fieldName: keyof MaterialTaskEditFormData, value: string) => {
+    const parsedValue = parseFormattedNumber(value);
+    
     setEditFormData(prev => ({
         ...prev,
-        [name]: (name === 'profitMarginForTaskMaterial' || name === 'purchasedValueForTask') 
-                  ? (value === '' ? null : Number(value)) 
-                  : Number(value)
+        [fieldName]: fieldName === 'quantityUsed' ? (parsedValue ?? 0) : parsedValue
     }));
   };
+
 
   const handleSaveEditMaterialTask = async () => {
     if (!editingMaterialTask || !editingMaterialTask._id) return;
@@ -212,21 +213,10 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
     try {
       const payload:any = {
         quantityUsed: editFormData.quantityUsed,
+        profitMarginForTaskMaterial: editFormData.profitMarginForTaskMaterial,
+        purchasedValueForTask: editFormData.purchasedValueForTask,
       };
       
-      if (editFormData.profitMarginForTaskMaterial === null || editFormData.profitMarginForTaskMaterial === undefined || editFormData.profitMarginForTaskMaterial === '') {
-        payload.profitMarginForTaskMaterial = null;
-      } else {
-        payload.profitMarginForTaskMaterial = Number(editFormData.profitMarginForTaskMaterial);
-      }
-
-      if (editFormData.purchasedValueForTask === null || editFormData.purchasedValueForTask === undefined || editFormData.purchasedValueForTask === '') {
-        payload.purchasedValueForTask = null;
-      } else {
-        payload.purchasedValueForTask = Number(editFormData.purchasedValueForTask);
-      }
-
-
       const response = await fetch(`/api/materials/task/${editingMaterialTask._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -353,11 +343,13 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                         <Label htmlFor="quantity-used">Cantidad a Usar</Label>
                         <Input
                             id="quantity-used"
-                            type="number"
-                            min="0.000001" // Ensure positive non-zero
-                            step="any"
-                            value={quantityUsed}
-                            onChange={(e) => setQuantityUsed(e.target.value)}
+                            type="text" // Changed to text
+                            value={String(quantityUsed)} // Keep as string for input
+                            onChange={(e) => setQuantityUsed(e.target.value)} // Update string state
+                            onBlur={(e) => {
+                                const numValue = parseFormattedNumber(e.target.value);
+                                setQuantityUsed(numValue !== null ? formatNumberForInput(numValue) : '');
+                            }}
                             placeholder="Ej. 10.5"
                             disabled={!selectedMaterialProject}
                         />
@@ -368,11 +360,13 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                         <Label htmlFor="profit-margin-new">Margen de Utilidad para esta tarea (%) (Opcional)</Label>
                         <Input
                             id="profit-margin-new"
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            value={profitMargin}
+                            type="text" // Changed to text
+                            value={String(profitMargin)}
                             onChange={(e) => setProfitMargin(e.target.value)}
+                            onBlur={(e) => {
+                                const numValue = parseFormattedNumber(e.target.value);
+                                setProfitMargin(numValue !== null ? formatNumberForInput(numValue) : '');
+                            }}
                             placeholder="Ej. 10 (si se deja vacío usará el del material)"
                             disabled={!selectedMaterialProject}
                         />
@@ -381,12 +375,14 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                         <Label htmlFor="purchased-value-new">Valor de Compra para esta Asignación (Opcional)</Label>
                         <Input
                             id="purchased-value-new"
-                            type="number"
-                            min="0"
-                            step="0.01"
+                            type="text" // Changed to text
                             value={purchasedValueForTaskInput}
                             onChange={(e) => setPurchasedValueForTaskInput(e.target.value)}
-                            placeholder="Ej. 50000"
+                            onBlur={(e) => {
+                                const numValue = parseFormattedNumber(e.target.value);
+                                setPurchasedValueForTaskInput(numValue !== null ? formatNumberForInput(numValue) : '');
+                            }}
+                            placeholder="Ej. 50.000"
                             disabled={!selectedMaterialProject}
                         />
                         </div>
@@ -407,11 +403,9 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                           <Input
                               id="edit-quantity-used"
                               name="quantityUsed"
-                              type="number"
-                              min="0.000001"
-                              step="any"
-                              value={editFormData.quantityUsed}
-                              onChange={handleEditInputChange}
+                              type="text" // Changed to text
+                              value={formatNumberForInput(editFormData.quantityUsed)}
+                              onChange={(e) => handleEditInputChange('quantityUsed', e.target.value)}
                           />
                       </div>
                       <div>
@@ -419,12 +413,10 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                           <Input
                               id="edit-profit-margin"
                               name="profitMarginForTaskMaterial"
-                              type="number"
-                              min="0"
-                              step="0.1"
+                              type="text" // Changed to text
                               placeholder="Ej: 10 (para 10%)"
-                              value={editFormData.profitMarginForTaskMaterial ?? ''}
-                              onChange={handleEditInputChange}
+                              value={formatNumberForInput(editFormData.profitMarginForTaskMaterial)}
+                              onChange={(e) => handleEditInputChange('profitMarginForTaskMaterial', e.target.value)}
                           />
                       </div>
                       <div>
@@ -432,12 +424,10 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                           <Input
                               id="edit-purchased-value"
                               name="purchasedValueForTask"
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              placeholder="Ej: 45000"
-                              value={editFormData.purchasedValueForTask ?? ''}
-                              onChange={handleEditInputChange}
+                              type="text" // Changed to text
+                              placeholder="Ej: 45.000"
+                              value={formatNumberForInput(editFormData.purchasedValueForTask)}
+                              onChange={(e) => handleEditInputChange('purchasedValueForTask', e.target.value)}
                           />
                       </div>
                   </div>
@@ -477,10 +467,10 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                         <TableRow key={mt._id}>
                           <TableCell>{(mt.materialProjectId as MaterialProject)?.title || 'N/A'}</TableCell>
                           <TableCell>{(mt.materialProjectId as MaterialProject)?.referenceCode || 'N/A'}</TableCell>
-                          <TableCell className="text-right">{mt.quantityUsed.toLocaleString()}</TableCell>
-                          <TableCell className="text-right">{mt.materialCostForTask?.toLocaleString() ?? 'N/A'}</TableCell>
-                          <TableCell className="text-right">{mt.profitMarginForTaskMaterial?.toLocaleString() ?? '-'}</TableCell>
-                          <TableCell className="text-right">{mt.purchasedValueForTask?.toLocaleString() ?? 'N/A'}</TableCell>
+                          <TableCell className="text-right">{(mt.quantityUsed || 0).toLocaleString('es-CO')}</TableCell>
+                          <TableCell className="text-right">{mt.materialCostForTask?.toLocaleString('es-CO', {minimumFractionDigits:0, maximumFractionDigits: 0}) ?? 'N/A'}</TableCell>
+                          <TableCell className="text-right">{mt.profitMarginForTaskMaterial?.toLocaleString('es-CO') ?? '-'}</TableCell>
+                          <TableCell className="text-right">{mt.purchasedValueForTask?.toLocaleString('es-CO', {minimumFractionDigits:0, maximumFractionDigits: 0}) ?? 'N/A'}</TableCell>
                           <TableCell className="text-right space-x-1">
                             <Button variant="ghost" size="icon" onClick={() => setEditingMaterialTask(mt)} disabled={isSubmitting || !!editingMaterialTask}>
                                   <Edit className="h-4 w-4" />

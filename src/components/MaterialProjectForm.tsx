@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -14,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Asterisk } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { formatNumberForInput, parseFormattedNumber } from '@/lib/formattingUtils';
 
 const unitsOfMeasureValues = [
   'm', 'm²', 'm³', 'kg', 'L', 'gal', 'unidad', 'caja', 'rollo', 'bolsa', 'hr', 'día', 'semana', 'mes', 'global', 'pulg', 'pie', 'yd', 'ton', 'lb'
@@ -29,11 +29,11 @@ const materialProjectFormSchema = z.object({
     required_error: "La unidad de medida es requerida.",
   }),
   estimatedUnitPrice: z.preprocess(
-    (val) => (String(val).trim() === '' ? 0 : Number(val)), // If empty, default to 0, otherwise convert to number
+    (val) => (String(val).trim() === '' ? 0 : Number(val)), 
     z.number().min(0, "El precio unitario estimado debe ser no negativo")
   ),
   profitMargin: z.preprocess(
-    (val) => (String(val).trim() === '' ? null : Number(val)), // If empty, treat as null, otherwise convert to number
+    (val) => (String(val).trim() === '' ? null : Number(val)), 
     z.number().min(0, "El margen de utilidad debe ser no negativo").nullable()
   ),
 });
@@ -91,18 +91,12 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
         : `/api/projects/${projectId}/materials`;
       const method = existingMaterial?._id ? 'PUT' : 'POST';
 
-      // For PUT, only send fields that have values to avoid overwriting with undefined
-      // For POST, send all data
       let payload: Partial<MaterialProjectFormData> | MaterialProjectFormData = data;
       if (method === 'PUT') {
         payload = {};
         for (const key in data) {
           if (Object.prototype.hasOwnProperty.call(data, key)) {
             const typedKey = key as keyof MaterialProjectFormData;
-            // For profitMargin, if it's null in form data, we send it as null.
-            // For other fields, if they are empty strings or undefined (after zod preprocessing), they might not be sent
-            // or sent as their default (e.g., estimatedUnitPrice as 0 if empty).
-            // Zod schema ensures they are of correct type or default before this point.
             if (data[typedKey] !== undefined ) {
                  // @ts-ignore
                 payload[typedKey] = data[typedKey];
@@ -248,12 +242,11 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
                   <FormLabel>Precio Unit. Estimado <Asterisk className="inline h-3 w-3 text-destructive" /></FormLabel>
                   <FormControl>
                     <Input 
-                      type="number" 
-                      step="0.01"
-                      placeholder="Ej. 15000" 
+                      type="text" // Changed to text
+                      placeholder="Ej. 15.000" 
                       {...field} 
-                      value={field.value ?? ''} // Ensure empty string if null/undefined
-                      onChange={e => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))} 
+                      value={field.value === 0 ? '' : formatNumberForInput(field.value)}
+                      onChange={e => field.onChange(parseFormattedNumber(e.target.value) ?? 0)} 
                     />
                   </FormControl>
                   <FormMessage />
@@ -272,7 +265,7 @@ export const MaterialProjectForm: React.FC<MaterialProjectFormProps> = ({
                       step="0.1" 
                       placeholder="Ej. 10 (para 10%)" 
                       {...field} 
-                      value={field.value ?? ''} // Ensure empty string if null/undefined
+                      value={field.value ?? ''} 
                       onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} 
                     />
                   </FormControl>
