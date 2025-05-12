@@ -1,4 +1,3 @@
-
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -20,19 +19,19 @@ const unitsOfMeasureValues = [
 // Schema for a single row in the CSV
 const csvMaterialRowSchema = z.object({
   title: z.string().min(1, "El título es requerido"),
-  referenceCode: z.string().optional().nullable(), // Optional
-  brand: z.string().optional().nullable(), // Optional
-  supplier: z.string().optional().nullable(), // Optional
-  description: z.string().optional().nullable(), // Optional
+  referenceCode: z.string().optional().nullable(), 
+  brand: z.string().optional().nullable(), 
+  supplier: z.string().optional().nullable(), 
+  description: z.string().optional().nullable(), 
   unitOfMeasure: z.enum(unitsOfMeasureValues, {
     errorMap: () => ({ message: "La unidad de medida es inválida." }),
   }),
   estimatedUnitPrice: z.preprocess(
-    (val) => (String(val).trim() === '' ? 0 : Number(String(val).replace(/,/g, '.'))), // Allow comma as decimal separator
+    (val) => (String(val).trim() === '' ? 0 : Number(String(val).replace(/,/g, '.'))), 
     z.number().min(0, "El precio unitario estimado debe ser no negativo")
   ),
   profitMargin: z.preprocess(
-    (val) => (String(val).trim() === '' ? null : Number(String(val).replace(/,/g, '.'))), // Allow comma as decimal separator
+    (val) => (String(val).trim() === '' ? null : Number(String(val).replace(/,/g, '.'))), 
     z.number().min(0, "El margen de utilidad debe ser no negativo").nullable().optional()
   ),
 });
@@ -113,8 +112,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
     for (let i = 0; i < parsedRows.length; i++) {
       const row = parsedRows[i];
       try {
-        // Ensure required headers are present
-        const requiredHeaders = ['title', 'unitOfMeasure', 'estimatedUnitPrice']; // Only these are strictly required now
+        const requiredHeaders = ['title', 'unitOfMeasure', 'estimatedUnitPrice']; 
         for(const header of requiredHeaders) {
             if(!(header in row)) {
                 throw new Error(`Falta la columna requerida: ${header}`);
@@ -125,15 +123,19 @@ export async function POST(request: Request, { params }: { params: Params }) {
         
         const newMaterialProjectData = {
           projectId: new mongoose.Types.ObjectId(projectId),
-          ...validatedRow,
-          referenceCode: validatedRow.referenceCode || null, // Ensure null if not provided
-          brand: validatedRow.brand || null,
-          supplier: validatedRow.supplier || null,
-          description: validatedRow.description || null,
-          profitMargin: validatedRow.profitMargin === undefined ? null : validatedRow.profitMargin,
+          title: validatedRow.title,
+          unitOfMeasure: validatedRow.unitOfMeasure,
+          estimatedUnitPrice: validatedRow.estimatedUnitPrice,
+          
+          // Explicitly convert empty strings from CSV to null for optional string fields
+          referenceCode: validatedRow.referenceCode === "" ? null : validatedRow.referenceCode,
+          brand: validatedRow.brand === "" ? null : validatedRow.brand,
+          supplier: validatedRow.supplier === "" ? null : validatedRow.supplier,
+          description: validatedRow.description === "" ? null : validatedRow.description,
+          
+          // profitMargin is already handled by Zod preprocess to be null or number
+          profitMargin: validatedRow.profitMargin,
         };
-
-        // Removed check for duplicate referenceCode as it's no longer unique
         
         const newMaterialProject = new MaterialProject(newMaterialProjectData);
         await newMaterialProject.save();
@@ -142,8 +144,10 @@ export async function POST(request: Request, { params }: { params: Params }) {
       } catch (error: any) {
         if (error instanceof z.ZodError) {
           errors.push({ row: i + 2, message: 'Error de validación de datos.', details: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ') });
-        } else {
-          // Handle other potential errors, e.g., database errors not related to duplicate keys
+        } else if (error instanceof mongoose.Error.ValidationError) {
+          errors.push({ row: i + 2, message: `Error de validación de base de datos: ${error.message}` });
+        }
+         else {
           errors.push({ row: i + 2, message: `Error procesando fila: ${error.message}` });
         }
       }
@@ -164,7 +168,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
         summary,
         createdMaterials 
       }, 
-      { status: errors.length > 0 && createdMaterials.length === 0 ? 400 : 201 } 
+      { status: errors.length > 0 && createdMaterials.length === 0 ? 400 : (errors.length > 0 ? 207 : 201) } // 207 Multi-Status if partial success
     );
 
   } catch (error: any) {
@@ -175,3 +179,4 @@ export async function POST(request: Request, { params }: { params: Params }) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
+
