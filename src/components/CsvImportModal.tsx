@@ -73,7 +73,6 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
       const response = await fetch(importUrl, {
         method: 'POST',
         body: formData,
-        // No 'Content-Type' header for FormData, browser sets it with boundary
       });
 
       const result = await response.json();
@@ -90,30 +89,29 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
       if (result.summary?.errors && result.summary.errors.length > 0) {
         setImportErrors(result.summary.errors);
          toast({
-            variant: "default", // or "warning" if you have one
+            variant: "default", 
             title: "Importación con Errores",
             description: `Algunas filas no pudieron ser importadas. Revisa los detalles a continuación. ${result.summary.successfulImports} importadas, ${result.summary.failedImports} fallidas.`
         });
       } else {
-        setImportErrors([]); // Clear errors on full success
+        setImportErrors([]); 
       }
       onImportSuccess();
-      // Optionally close modal on success, or let user see errors
-      // onClose(); 
+      // onClose(); // Keep modal open to show errors or success summary
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: `Error de Importación`,
         description: error.message || `Ocurrió un error al importar ${moduleName}.`,
       });
-       if(!importErrors.length) { // Only set generic error if no specific errors were parsed
+       if(!importErrors.length) { 
             setImportErrors([{row: 0, message: error.message || "Error desconocido en la importación."}]);
        }
     } finally {
       setIsImporting(false);
       setSelectedFile(null);
       if (fileInputRef.current) {
-        fileInputRef.current.value = ''; // Reset file input
+        fileInputRef.current.value = ''; 
       }
     }
   };
@@ -143,8 +141,9 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-grow pr-2 min-h-0"> {/* Removed py-2 from here */}
-            <div className="space-y-4 py-2"> {/* Added py-2 to this inner div */}
+        {/* This ScrollArea will contain the dynamic content and allow scrolling */}
+        <ScrollArea className="flex-grow overflow-y-auto pr-2 min-h-0"> 
+            <div className="space-y-4 py-2"> {/* Add padding to inner div */}
                 <Alert>
                     <Info className="h-4 w-4" />
                     <AlertTitle>Estructura del CSV Esperada</AlertTitle>
@@ -170,7 +169,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                 </div>
 
                 {importErrors.length > 0 && (
-                <Alert variant="destructive" className="max-h-48 overflow-y-auto"> {/* This specific alert can also scroll independently */}
+                <Alert variant="destructive" className="max-h-48 overflow-y-auto">
                     <AlertTitle>Errores de Importación</AlertTitle>
                     <AlertDescription>
                     <ul className="list-disc pl-5 text-xs">
@@ -186,6 +185,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
             </div>
         </ScrollArea>
         
+        {/* DialogFooter remains outside the ScrollArea, fixed at the bottom */}
         <DialogFooter className="pt-4 border-t mt-auto">
           <DialogClose asChild>
             <Button type="button" variant="outline" onClick={onClose} disabled={isImporting}>
