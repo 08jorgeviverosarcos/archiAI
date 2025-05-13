@@ -14,24 +14,23 @@ const unitsOfMeasureValues = [
 const materialProjectSchema = new Schema<IMaterialProject>(
   {
     projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true, index: true },
-    title: { type: String, required: true }, 
-    // Optional string fields are optional by default (no 'required: true').
-    // 'trim: true' applies if a string value is given.
-    // Passing 'null' to these fields from the API is valid.
-    referenceCode: { type: String, trim: true }, 
-    brand: { type: String, trim: true }, 
-    supplier: { type: String, trim: true }, 
-    description: { type: String, trim: true }, 
+    title: { type: String, required: true },
+    referenceCode: { type: String, trim: true, required: false },
+    brand: { type: String, trim: true, required: false },
+    supplier: { type: String, trim: true, required: false },
+    description: { type: String, trim: true, required: false },
     unitOfMeasure: { type: String, required: true, enum: unitsOfMeasureValues },
     estimatedUnitPrice: { type: Number, required: true, min: 0, default: 0 },
-    // For optional number fields that can be null, 'default: null' handles cases where the field is omitted.
-    // 'required: false' explicitly states it's not mandatory.
     profitMargin: { type: Number, min: 0, default: null, required: false },
   },
   {
     timestamps: true, // Automatically adds createdAt and updatedAt
   }
 );
+
+// The following index was removed as per user request to allow duplicate and null referenceCodes.
+// materialProjectSchema.index({ projectId: 1, referenceCode: 1 }, { unique: true, sparse: true });
+
 
 const MaterialProject: Model<IMaterialProject> =
   mongoose.models.MaterialProject || mongoose.model<IMaterialProject>('MaterialProject', materialProjectSchema);

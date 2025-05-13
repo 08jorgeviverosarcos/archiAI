@@ -88,24 +88,23 @@ export async function POST(request: Request, { params }: { params: Params }) {
       estimatedUnitPrice: parsedBody.estimatedUnitPrice,
     };
 
-    if (parsedBody.referenceCode !== undefined) {
+    // Explicitly assign optional fields if they are present in parsedBody (even if null)
+    if (Object.prototype.hasOwnProperty.call(parsedBody, 'referenceCode')) {
       newMaterialProjectData.referenceCode = parsedBody.referenceCode;
     }
-    if (parsedBody.brand !== undefined) {
+    if (Object.prototype.hasOwnProperty.call(parsedBody, 'brand')) {
       newMaterialProjectData.brand = parsedBody.brand;
     }
-    if (parsedBody.supplier !== undefined) {
+    if (Object.prototype.hasOwnProperty.call(parsedBody, 'supplier')) {
       newMaterialProjectData.supplier = parsedBody.supplier;
     }
-    if (parsedBody.description !== undefined) {
+    if (Object.prototype.hasOwnProperty.call(parsedBody, 'description')) {
       newMaterialProjectData.description = parsedBody.description;
     }
-    if (parsedBody.profitMargin !== undefined) {
+    if (Object.prototype.hasOwnProperty.call(parsedBody, 'profitMargin')) {
         newMaterialProjectData.profitMargin = parsedBody.profitMargin;
     }
-
-    // Removed duplicate referenceCode check as it's no longer a unique constraint
-
+    
     const newMaterialProject = new MaterialProject(newMaterialProjectData);
     await newMaterialProject.save();
 
@@ -118,11 +117,10 @@ export async function POST(request: Request, { params }: { params: Params }) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    // Note: The MongoServerError for code 11000 (duplicate key) might still occur if other unique indexes exist.
-    // For this specific referenceCode scenario, it's removed.
     return new NextResponse(JSON.stringify({
       message: 'Failed to create material.',
       error: error instanceof Error ? error.message : String(error),
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
+
