@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, PackagePlus, Trash2, Edit, Search } from 'lucide-react';
+import { Loader2, PackagePlus, Trash2, Edit, Search, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { MaterialTask, MaterialProject } from '@/types';
+import type { MaterialTask, MaterialProject as MaterialProjectType } from '@/types'; // Renamed MaterialProject to MaterialProjectType
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -18,6 +18,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { MaterialProjectForm } from '@/components/MaterialProjectForm'; // Import MaterialProjectForm
 import { formatNumberForInput, parseFormattedNumber } from '@/lib/formattingUtils';
 
 interface AssignMaterialToTaskDialogProps {
@@ -45,20 +46,22 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
 }) => {
   const { toast } = useToast();
   const [assignedMaterials, setAssignedMaterials] = useState<MaterialTask[]>([]);
-  const [projectMaterials, setProjectMaterials] = useState<MaterialProject[]>([]);
+  const [projectMaterials, setProjectMaterials] = useState<MaterialProjectType[]>([]);
   const [isLoadingAssigned, setIsLoadingAssigned] = useState(false);
   const [isLoadingProjectMaterials, setIsLoadingProjectMaterials] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [selectedMaterialProject, setSelectedMaterialProject] = useState<string>('');
-  const [quantityUsed, setQuantityUsed] = useState<number | string>(''); // Keep as string for direct input handling
-  const [profitMargin, setProfitMargin] = useState<number | string>(''); // Keep as string
-  const [purchasedValueForTaskInput, setPurchasedValueForTaskInput] = useState<string>(''); // Keep as string
+  const [quantityUsed, setQuantityUsed] = useState<number | string>(''); 
+  const [profitMargin, setProfitMargin] = useState<number | string>(''); 
+  const [purchasedValueForTaskInput, setPurchasedValueForTaskInput] = useState<string>(''); 
   const [searchTerm, setSearchTerm] = useState('');
 
 
   const [editingMaterialTask, setEditingMaterialTask] = useState<MaterialTask | null>(null);
   const [editFormData, setEditFormData] = useState<MaterialTaskEditFormData>({ quantityUsed: 0, profitMarginForTaskMaterial: null, purchasedValueForTask: null });
+  
+  const [isCreateMaterialFormOpen, setIsCreateMaterialFormOpen] = useState(false); // State for nested dialog
 
 
   const fetchAssignedMaterials = useCallback(async () => {
@@ -107,6 +110,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
       setProfitMargin('');
       setPurchasedValueForTaskInput('');
       setSearchTerm('');
+      setIsCreateMaterialFormOpen(false);
     }
   }, [isOpen, fetchAssignedMaterials, fetchProjectMaterials]);
 
@@ -128,9 +132,9 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
       return projectMaterials;
     }
     return projectMaterials.filter(material =>
-      material.referenceCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      material.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      material.brand.toLowerCase().includes(searchTerm.toLowerCase())
+      (material.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (material.referenceCode || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (material.brand || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [projectMaterials, searchTerm]);
 
@@ -258,9 +262,16 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
     }
   };
 
+  const handleNewMaterialProjectCreated = (newMaterial: MaterialProjectType) => {
+    fetchProjectMaterials(); // Refresh the list of project materials
+    setIsCreateMaterialFormOpen(false); // Close the nested dialog
+    toast({ title: 'Material de Proyecto Creado', description: `El material "${newMaterial.title}" ha sido creado.` });
+    // Optionally, auto-select the new material:
+    // setSelectedMaterialProject(newMaterial._id!); 
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); setEditingMaterialTask(null); setSelectedMaterialProject(''); setSearchTerm('');} }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); setEditingMaterialTask(null); setSelectedMaterialProject(''); setSearchTerm(''); setIsCreateMaterialFormOpen(false); } }}>
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Gestionar Materiales de Tarea</DialogTitle>
@@ -277,7 +288,27 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
 
                 {!selectedMaterialProject ? (
                   <div className="space-y-2">
-                    <Label htmlFor="material-search">Buscar Material</Label>
+                    <div className='flex justify-between items-center'>
+                        <Label htmlFor="material-search">Buscar Material</Label>
+                        <Dialog open={isCreateMaterialFormOpen} onOpenChange={setIsCreateMaterialFormOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                    <PlusCircle className="mr-2 h-4 w-4" /> Crear Nuevo Material
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[750px] max-h-[90vh] flex flex-col">
+                                <DialogHeader>
+                                    <DialogTitle>Agregar Nuevo Material al Proyecto</DialogTitle>
+                                </DialogHeader>
+                                <MaterialProjectForm
+                                    projectId={projectId}
+                                    onMaterialSaved={handleNewMaterialProjectCreated}
+                                    onCancel={() => setIsCreateMaterialFormOpen(false)}
+                                />
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+
                     <div className="flex items-center space-x-2">
                         <Search className="h-5 w-5 text-muted-foreground" />
                         <Input
@@ -306,7 +337,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                             {filteredProjectMaterials.map((material) => (
                               <TableRow key={material._id}>
                                 <TableCell>{material.title}</TableCell>
-                                <TableCell>{material.referenceCode}</TableCell>
+                                <TableCell>{material.referenceCode || '-'}</TableCell>
                                 <TableCell>{material.unitOfMeasure}</TableCell>
                                 <TableCell className="text-right">
                                   <Button type="button" size="sm" onClick={() => handleSelectMaterialFromTable(material._id!)}>
@@ -328,7 +359,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                   <div className="space-y-2 p-3 border rounded-md bg-muted/50">
                     <p className="text-sm font-medium">Material Seleccionado:</p>
                     <p className="text-sm">
-                      <span className="font-semibold">{getSelectedMaterialDetails()?.title}</span> ({getSelectedMaterialDetails()?.referenceCode})
+                      <span className="font-semibold">{getSelectedMaterialDetails()?.title}</span> ({getSelectedMaterialDetails()?.referenceCode || '-'})
                     </p>
                     <Button type="button" variant="outline" size="sm" onClick={() => {setSelectedMaterialProject(''); setSearchTerm('');}}>
                       Cambiar Material
@@ -343,9 +374,9 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                         <Label htmlFor="quantity-used">Cantidad a Usar</Label>
                         <Input
                             id="quantity-used"
-                            type="text" // Changed to text
-                            value={String(quantityUsed)} // Keep as string for input
-                            onChange={(e) => setQuantityUsed(e.target.value)} // Update string state
+                            type="text" 
+                            value={String(quantityUsed)} 
+                            onChange={(e) => setQuantityUsed(e.target.value)} 
                             onBlur={(e) => {
                                 const numValue = parseFormattedNumber(e.target.value);
                                 setQuantityUsed(numValue !== null ? formatNumberForInput(numValue) : '');
@@ -360,7 +391,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                         <Label htmlFor="profit-margin-new">Margen de Utilidad para esta tarea (%) (Opcional)</Label>
                         <Input
                             id="profit-margin-new"
-                            type="text" // Changed to text
+                            type="text" 
                             value={String(profitMargin)}
                             onChange={(e) => setProfitMargin(e.target.value)}
                             onBlur={(e) => {
@@ -375,7 +406,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                         <Label htmlFor="purchased-value-new">Valor de Compra para esta Asignación (Opcional)</Label>
                         <Input
                             id="purchased-value-new"
-                            type="text" // Changed to text
+                            type="text" 
                             value={purchasedValueForTaskInput}
                             onChange={(e) => setPurchasedValueForTaskInput(e.target.value)}
                             onBlur={(e) => {
@@ -396,14 +427,14 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
               </form>
             ) : (
               <div className="space-y-4 p-1 border rounded-md">
-                  <h3 className="text-lg font-medium">Editar Material Asignado: {((editingMaterialTask.materialProjectId as MaterialProject)?.title) || 'N/A'}</h3>
+                  <h3 className="text-lg font-medium">Editar Material Asignado: {((editingMaterialTask.materialProjectId as MaterialProjectType)?.title) || 'N/A'}</h3>
                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                           <Label htmlFor="edit-quantity-used">Cantidad Usada</Label>
                           <Input
                               id="edit-quantity-used"
                               name="quantityUsed"
-                              type="text" // Changed to text
+                              type="text" 
                               value={formatNumberForInput(editFormData.quantityUsed)}
                               onChange={(e) => handleEditInputChange('quantityUsed', e.target.value)}
                           />
@@ -413,7 +444,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                           <Input
                               id="edit-profit-margin"
                               name="profitMarginForTaskMaterial"
-                              type="text" // Changed to text
+                              type="text" 
                               placeholder="Ej: 10 (para 10%)"
                               value={formatNumberForInput(editFormData.profitMarginForTaskMaterial)}
                               onChange={(e) => handleEditInputChange('profitMarginForTaskMaterial', e.target.value)}
@@ -424,7 +455,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                           <Input
                               id="edit-purchased-value"
                               name="purchasedValueForTask"
-                              type="text" // Changed to text
+                              type="text" 
                               placeholder="Ej: 45.000"
                               value={formatNumberForInput(editFormData.purchasedValueForTask)}
                               onChange={(e) => handleEditInputChange('purchasedValueForTask', e.target.value)}
@@ -465,8 +496,8 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                     <TableBody>
                       {assignedMaterials.map((mt) => (
                         <TableRow key={mt._id}>
-                          <TableCell>{(mt.materialProjectId as MaterialProject)?.title || 'N/A'}</TableCell>
-                          <TableCell>{(mt.materialProjectId as MaterialProject)?.referenceCode || 'N/A'}</TableCell>
+                          <TableCell>{(mt.materialProjectId as MaterialProjectType)?.title || 'N/A'}</TableCell>
+                          <TableCell>{(mt.materialProjectId as MaterialProjectType)?.referenceCode || '-'}</TableCell>
                           <TableCell className="text-right">{(mt.quantityUsed || 0).toLocaleString('es-CO')}</TableCell>
                           <TableCell className="text-right">{mt.materialCostForTask?.toLocaleString('es-CO', {minimumFractionDigits:0, maximumFractionDigits: 0}) ?? 'N/A'}</TableCell>
                           <TableCell className="text-right">{mt.profitMarginForTaskMaterial?.toLocaleString('es-CO') ?? '-'}</TableCell>
@@ -488,7 +519,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
                                       <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                                       <AlertDialogDescription>
                                           Esta acción no se puede deshacer. Esto eliminará permanentemente el material asignado
-                                          <span className="font-semibold"> {(mt.materialProjectId as MaterialProject)?.title} ({(mt.materialProjectId as MaterialProject)?.referenceCode})</span> de esta tarea.
+                                          <span className="font-semibold"> {(mt.materialProjectId as MaterialProjectType)?.title} ({(mt.materialProjectId as MaterialProjectType)?.referenceCode || '-'})</span> de esta tarea.
                                       </AlertDialogDescription>
                                       </AlertDialogHeader>
                                       <AlertDialogFooter>
@@ -513,7 +544,7 @@ export const AssignMaterialToTaskDialog: React.FC<AssignMaterialToTaskDialogProp
         </ScrollArea>
 
         <DialogFooter className="pt-4 border-t mt-auto">
-          <Button variant="outline" onClick={() => { onClose(); setEditingMaterialTask(null); setSelectedMaterialProject(''); setSearchTerm(''); }} disabled={isSubmitting}>Cerrar</Button>
+          <Button variant="outline" onClick={() => { onClose(); setEditingMaterialTask(null); setSelectedMaterialProject(''); setSearchTerm(''); setIsCreateMaterialFormOpen(false); }} disabled={isSubmitting}>Cerrar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
